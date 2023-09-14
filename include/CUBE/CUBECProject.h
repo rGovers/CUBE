@@ -428,7 +428,15 @@ void CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompil
 
     CUBE_Path_Destroy(&objectOutpath);
 
-    CUBEI_CProject_AppendLinkerFlags(&commandLine, a_project, a_compiler);
+    for (CBUINT32 i = 0; i < a_project->ReferenceCount; ++i)
+    {
+        CUBE_String reference = CUBE_String_CreateC("-l");
+        CUBE_String_AppendS(&reference, &a_project->References[i]);
+
+        CUBE_CommandLine_AppendArgumentC(&commandLine, reference.Data);
+
+        CUBE_String_Destroy(&reference);
+    }
 
     CUBE_CommandLine_Execute(&commandLine);
 
