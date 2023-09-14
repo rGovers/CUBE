@@ -8,6 +8,7 @@ extern "C" {
 #endif
 
 void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path);
+void CUBE_IO_CreateDirectoryNRP(const CUBE_Path* a_path);
 void CUBE_IO_CreateDirectoryC(const char* a_path);
 
 #ifdef CUBE_IMPLEMENTATION
@@ -30,6 +31,31 @@ void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path)
         {
             CUBE_String_AppendS(&path, &a_path->Path[j]);
             CUBE_String_AppendC(&path, "/");
+        }
+
+        CUBE_IO_CreateDirectoryC(path.Data);
+
+        CUBE_String_Destroy(&path);
+    }
+}
+void CUBE_IO_CreateDirectoryNRP(const CUBE_Path* a_path)
+{
+    for (CBUINT32 i = 0; i < a_path->PathCount; ++i)
+    {
+        CUBE_String path = { 0 };
+
+        for (CBUINT32 j = 0; j <= i; ++j)
+        {
+            const CUBE_String pathPart = a_path->Path[j];
+            if (pathPart.Length == 2 && pathPart.Data[0] == '.' && pathPart.Data[1] == '.')
+            {
+                CUBE_String_AppendC(&path, "NR/");
+            }
+            else
+            {
+                CUBE_String_AppendS(&path, &a_path->Path[j]);
+                CUBE_String_AppendC(&path, "/");
+            }
         }
 
         CUBE_IO_CreateDirectoryC(path.Data);

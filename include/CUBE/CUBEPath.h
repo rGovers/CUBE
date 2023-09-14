@@ -29,6 +29,7 @@ CUBE_Path CUBE_Path_CombineSS(const CUBE_Path* a_lhs, const CUBE_StackString* a_
 CUBE_Path CUBE_Path_CombineP(const CUBE_Path* a_lhs, const CUBE_Path* a_rhs);
 
 CUBE_String CUBE_Path_ToString(const CUBE_Path* a_path);
+CUBE_String CUBE_Path_ToNRString(const CUBE_Path* a_path);
 
 CUBE_String CUBE_Path_Extension(const CUBE_Path* a_path);
 CUBE_String CUBE_Path_Filename(const CUBE_Path* a_path);
@@ -130,6 +131,30 @@ CUBE_String CUBE_Path_ToString(const CUBE_Path* a_path)
 
     return string;
 }
+CUBE_String CUBE_Path_ToNRString(const CUBE_Path* a_path)
+{
+    CUBE_String string = { 0 };
+
+    for (CBUINT32 i = 0; i < a_path->PathCount; ++i)
+    {
+        const CUBE_String path = a_path->Path[i];
+        if (path.Length == 2 && path.Data[0] == '.' && path.Data[1] == '.')
+        {
+            CUBE_String_AppendC(&string, "NR");
+        }
+        else
+        {
+            CUBE_String_AppendS(&string, &path);
+        }
+
+        if (i < a_path->PathCount - 1)
+        {
+            CUBE_String_AppendC(&string, "/");
+        }
+    }
+
+    return string;
+}
 
 CUBE_Path CUBE_Path_CombineC(const CUBE_Path* a_lhs, const char* a_rhs)
 {
@@ -161,9 +186,17 @@ CUBE_Path CUBE_Path_CombineP(const CUBE_Path* a_lhs, const CUBE_Path* a_rhs)
         path.Path[i] = CUBE_String_Copy(&a_lhs->Path[i]);
     }
 
+    CBUINT32 index = 0;
     for (CBUINT32 i = 0; i < a_rhs->PathCount; ++i)
     {
-        path.Path[i + a_lhs->PathCount] = CUBE_String_Copy(&a_rhs->Path[i]);
+        if (a_rhs->Path[i].Length == 1 && a_rhs->Path[i].Data[0] == '.')
+        {
+            --path.PathCount;
+
+            continue;
+        }
+        
+        path.Path[index++ + a_lhs->PathCount] = CUBE_String_Copy(&a_rhs->Path[i]);
     }
 
     return path;
