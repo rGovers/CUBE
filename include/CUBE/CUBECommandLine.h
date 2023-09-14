@@ -25,6 +25,8 @@ void CUBE_CommandLine_Execute(CUBE_CommandLine* a_commandLine);
 void CUBE_CommandLine_Destroy(CUBE_CommandLine* a_commandLine);
 
 #ifdef CUBE_IMPLEMENTATION
+// #if 1
+
 void CUBE_CommandLine_AppendArgumentC(CUBE_CommandLine* a_commandLine, const char* a_argument)
 {
     const CBUINT32 argumentCount = a_commandLine->ArgumentCount++;

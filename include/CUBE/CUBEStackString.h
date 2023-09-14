@@ -16,16 +16,17 @@ typedef struct
 CUBE_StackString CUBE_StackString_CreateC(const char* a_string);
 void CUBE_StackString_Destroy(CUBE_StackString* a_string);
 
-CUBE_StackString CUBE_StackString_Copy(CUBE_StackString* a_string);
+CUBE_StackString CUBE_StackString_Copy(const CUBE_StackString* a_string);
 
-CUBE_StackString CUBE_StackString_MergeSS(CUBE_StackString* a_lhs, const CUBE_StackString* a_rhs);
-CUBE_StackString CUBE_StackString_MergeC(CUBE_StackString* a_lhs, const char* a_rhs);
+CUBE_StackString CUBE_StackString_MergeSS(const CUBE_StackString* a_lhs, const CUBE_StackString* a_rhs);
+CUBE_StackString CUBE_StackString_MergeC(const CUBE_StackString* a_lhs, const char* a_rhs);
 
 void CUBE_StackString_AppendSS(CUBE_StackString* a_lhs, const CUBE_StackString* a_rhs);
 void CUBE_StackString_AppendC(CUBE_StackString* a_lhs, const char* a_rhs);
 
 
 #ifdef CUBE_IMPLEMENTATION
+// #if 1
 
 CUBE_StackString CUBE_StackString_CreateC(const char* a_string)
 {
@@ -49,7 +50,7 @@ void CUBE_StackString_Destroy(CUBE_StackString* a_string)
     a_string->Length = 0;
 }
 
-CUBE_StackString CUBE_StackString_Copy(CUBE_StackString* a_string)
+CUBE_StackString CUBE_StackString_Copy(const CUBE_StackString* a_string)
 {
     CUBE_StackString string;
     string.Length = a_string->Length;
@@ -63,7 +64,7 @@ CUBE_StackString CUBE_StackString_Copy(CUBE_StackString* a_string)
     return string;
 }
 
-CUBE_StackString CUBE_StackString_MergeSS(CUBE_StackString* a_lhs, const CUBE_StackString* a_rhs)
+CUBE_StackString CUBE_StackString_MergeSS(const CUBE_StackString* a_lhs, const CUBE_StackString* a_rhs)
 {
     CUBE_StackString string;
     string.Length = a_lhs->Length + a_rhs->Length;
@@ -81,7 +82,7 @@ CUBE_StackString CUBE_StackString_MergeSS(CUBE_StackString* a_lhs, const CUBE_St
 
     return string;
 }
-CUBE_StackString CUBE_StackString_MergeC(CUBE_StackString* a_lhs, const char* a_rhs)
+CUBE_StackString CUBE_StackString_MergeC(const CUBE_StackString* a_lhs, const char* a_rhs)
 {
     CUBE_StackString string;
     string.Length = a_lhs->Length;
@@ -97,6 +98,7 @@ CUBE_StackString CUBE_StackString_MergeC(CUBE_StackString* a_lhs, const char* a_
         string.Data[index + a_lhs->Length] = a_rhs[index];
         ++index;
     }
+    string.Length += index;
     string.Data[string.Length] = '\0';
 
     return string;

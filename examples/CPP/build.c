@@ -10,13 +10,13 @@ int main(int a_argc, char** a_argv)
     proj.Target = CUBE_CProjectTarget_Exe;
     proj.Language = CUBE_CProjectLanguage_CPP;
 #if _WIN32
-    proj.OutputPath = CUBE_String_CreateC("CppExample.exe");
+    proj.OutputPath = CUBE_Path_CreateC("CppExample.exe");
 #else
-    proj.OutputPath = CUBE_String_CreateC("CppExample");
+    proj.OutputPath = CUBE_Path_CreateC("CppExample");
 #endif
 
     CUBE_CProject_AppendSource(&proj, "src/main.cpp");
-    CUBE_CProject_Append_Reference(&proj, "stdc++");
+    CUBE_CProject_AppendReference(&proj, "stdc++");
 
     CUBE_CProject_Compile(&proj, CUBE_CProjectCompiler_GCC, CBNULL);
 

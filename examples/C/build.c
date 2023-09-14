@@ -10,9 +10,9 @@ int main(int a_argc, char* a_argv[])
     proj.Target = CUBE_CProjectTarget_Exe;
     proj.Language = CUBE_CProjectLanguage_C;
 #if _WIN32
-    proj.OutputPath = CUBE_String_CreateC("CExample.exe");
+    proj.OutputPath = CUBE_Path_CreateC("CExample.exe");
 #else
-    proj.OutputPath = CUBE_String_CreateC("CExample");
+    proj.OutputPath = CUBE_Path_CreateC("CExample");
 #endif
 
     CUBE_CProject_AppendSource(&proj, "src/main.c");

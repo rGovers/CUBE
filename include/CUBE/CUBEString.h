@@ -1,5 +1,5 @@
-#ifndef ICLUDED_HEADER_CUBESTRING
-#define ICLUDED_HEADER_CUBESTRING
+#ifndef INCLUDED_HEADER_CUBESTRING
+#define INCLUDED_HEADER_CUBESTRING
 
 #include <stdlib.h>
 
@@ -16,6 +16,7 @@ typedef struct
 } CUBE_String;
 
 CUBE_String CUBE_String_CreateC(const char* a_string);
+CUBE_String CUBE_String_CreateCL(const char* a_string, CBUINT32 a_length);
 CUBE_String CUBE_String_CreateSS(const CUBE_StackString* a_string);
 
 void CUBE_String_Destroy(CUBE_String* a_string);
@@ -31,6 +32,7 @@ void CUBE_String_AppendSS(CUBE_String* a_lhs, const CUBE_StackString* a_rhs);
 void CUBE_String_AppendC(CUBE_String* a_lhs, const char* a_rhs);
 
 #ifdef CUBE_IMPLEMENTATION
+// #if 1
 
 CUBE_String CUBE_String_CreateC(const char* a_string)
 {
@@ -40,6 +42,20 @@ CUBE_String CUBE_String_CreateC(const char* a_string)
     {
         ++string.Length;
     }
+
+    string.Data = (char*)malloc(sizeof(char) * string.Length + 1);
+    for (CBUINT32 i = 0; i < string.Length; ++i)
+    {
+        string.Data[i] = a_string[i];
+    }
+    string.Data[string.Length] = '\0';
+
+    return string;
+}
+CUBE_String CUBE_String_CreateCL(const char* a_string, CBUINT32 a_length)
+{
+    CUBE_String string;
+    string.Length = a_length;
 
     string.Data = (char*)malloc(sizeof(char) * string.Length + 1);
     for (CBUINT32 i = 0; i < string.Length; ++i)
