@@ -1,6 +1,7 @@
 #ifndef INCLUDED_HEADER_CUBECOMMANDLINE
 #define INCLUDED_HEADER_CUBECOMMANDLINE
 
+#include <stdio.h>
 #include <stdlib.h>
 
 #ifdef __cplusplus
@@ -20,7 +21,7 @@ typedef struct
 void CUBE_CommandLine_AppendArgumentC(CUBE_CommandLine* a_commandLine, const char* a_argument);
 void CUBE_CommandLine_AppendArgumentS(CUBE_CommandLine* a_commandLine, const CUBE_StackString* a_argument);
 
-void CUBE_CommandLine_Execute(CUBE_CommandLine* a_commandLine);
+int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
 void CUBE_CommandLine_Destroy(CUBE_CommandLine* a_commandLine);
 
@@ -48,7 +49,7 @@ void CUBE_CommandLine_AppendArgumentS(CUBE_CommandLine* a_commandLine, const CUB
     a_commandLine->Arguments[argumentCount] = argument;
 }
 
-void CUBE_CommandLine_Execute(CUBE_CommandLine* a_commandLine)
+int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String** a_lines, CBUINT32* a_lineCount)
 {
     CUBE_String cmdString = { 0 };
 
@@ -68,7 +69,51 @@ void CUBE_CommandLine_Execute(CUBE_CommandLine* a_commandLine)
         CUBE_String_AppendC(&cmdString, " ");
     }
 
-    system(cmdString.Data);
+#if WIN32
+    // TODO: Implement this for windows
+#else
+    FILE* fp = popen(cmdString.Data, "r");
+    if (fp == NULL)
+    {
+        return -1;
+    }
+
+    char buffer[1024];
+    while (fgets(buffer, sizeof(buffer), fp) != NULL)
+    {
+        const char* s = buffer;
+        const char* e = s;
+
+        while (*s != '\0')
+        {
+            if (*s == '\n')
+            {
+                CUBE_String str = CUBE_String_CreateCL(e, s - e);
+
+                e = s + 1;
+
+                *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+                (*a_lines)[*a_lineCount].Length = str.Length;
+                (*a_lines)[*a_lineCount].Data = str.Data;
+                *a_lineCount += 1;
+            }
+
+            ++s;
+        }
+
+        if (e != s)
+        {
+            CUBE_String str = CUBE_String_CreateCL(e, s - e);
+
+            *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+            (*a_lines)[*a_lineCount].Length = str.Length;
+            (*a_lines)[*a_lineCount].Data = str.Data;
+            *a_lineCount += 1;
+        }
+    }
+
+    return pclose(fp);
+#endif
 }
 
 void CUBE_CommandLine_Destroy(CUBE_CommandLine* a_commandLine)

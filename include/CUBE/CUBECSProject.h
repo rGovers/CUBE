@@ -19,7 +19,7 @@ typedef struct
 {
     CUBE_StackString Name;
     e_CUBE_CSProjectTarget Target;
-    CUBE_String OutputPath;
+    CUBE_Path OutputPath;
     CUBE_String* Sources;
     CBUINT32 SourceCount;
     CUBE_String* References;
@@ -32,9 +32,10 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
 void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_reference);
 
-void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_cscPath);
+void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
 #ifdef CUBE_IMPLEMENTATION
+// #if 1
 
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
 {
@@ -42,7 +43,7 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
     
     a_project->Target = CUBE_CSProjectTarget_Exe;
 
-    CUBE_String_Destroy(&a_project->OutputPath);
+    CUBE_Path_Destroy(&a_project->OutputPath);
 
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
     {
@@ -87,9 +88,13 @@ void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_re
     a_project->References[referenceCount] = reference;
 }
 
-void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_cscPath)
+void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
 {
     CUBE_CommandLine commandLine = { 0 };
+    if (a_workingPath != CBNULL)
+    {
+        CUBE_String_AppendC(&commandLine.Path, a_workingPath);
+    }
 
     if (a_cscPath != CBNULL)
     {
@@ -99,18 +104,16 @@ void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_cscPath)
     {
         CUBE_String_AppendC(&commandLine.Command, "csc");
     }
+    
+    CUBE_StackString outName = CUBE_StackString_Copy(&a_project->Name);
 
-    CUBE_String outPath = CUBE_String_CreateC("/out:");
-    CUBE_String_AppendS(&outPath, &a_project->OutputPath);
-
-    CUBE_CommandLine_AppendArgumentC(&commandLine, outPath.Data);
-
-    CUBE_String_Destroy(&outPath);
     switch (a_project->Target)
     {
     case CUBE_CSProjectTarget_Library:
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "/target:library");
+
+        CUBE_StackString_AppendC(&outName, ".dll");
 
         break;
     }
@@ -118,15 +121,39 @@ void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_cscPath)
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "/target:exe");
 
+        CUBE_StackString_AppendC(&outName, ".exe");
+
         break;
     }
     case CUBE_CSProjectTarget_WinExe:
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "/target:winexe");
 
+        CUBE_StackString_AppendC(&outName, ".exe");
+
         break;
     }
     }
+
+    CUBE_Path outPath = CUBE_Path_CombineSS(&a_project->OutputPath, &outName);
+    CUBE_String outPathStr = CUBE_Path_ToString(&outPath);
+
+    CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
+    CUBE_Path workingOutPath = CUBE_Path_CombineP(&workingPath, &a_project->OutputPath);
+
+    CUBE_IO_CreateDirectoryP(&workingOutPath); 
+
+    CUBE_Path_Destroy(&workingPath);
+    CUBE_Path_Destroy(&workingOutPath);
+
+    CUBE_String outArg = CUBE_String_CreateC("/out:");
+    CUBE_String_AppendS(&outArg, &outPathStr);
+
+    CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
+
+    CUBE_Path_Destroy(&outPath);
+    CUBE_String_Destroy(&outPathStr);
+    CUBE_String_Destroy(&outArg);
 
     if (a_project->Optimise)
     {
@@ -138,7 +165,7 @@ void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_cscPath)
         CUBE_CommandLine_AppendArgumentC(&commandLine, a_project->Sources[i].Data);
     }
 
-    CUBE_CommandLine_Execute(&commandLine);
+    CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
 }
 #endif
 

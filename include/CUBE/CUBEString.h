@@ -26,10 +26,12 @@ CUBE_String CUBE_String_Copy(CUBE_String* a_string);
 CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs);
 CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_StackString* a_rhs);
 CUBE_String CUBE_String_MergeC(const CUBE_String* a_lhs, const char* a_rhs);
+CUBE_String CUBE_String_MergeCL(const CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_length);
 
 void CUBE_String_AppendS(CUBE_String* a_lhs, const CUBE_String* a_rhs);
 void CUBE_String_AppendSS(CUBE_String* a_lhs, const CUBE_StackString* a_rhs);
 void CUBE_String_AppendC(CUBE_String* a_lhs, const char* a_rhs);
+void CUBE_String_AppendCL(CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_length);
 
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
@@ -66,7 +68,7 @@ CUBE_String CUBE_String_CreateCL(const char* a_string, CBUINT32 a_length)
 
     return string;
 }
-inline CUBE_String CUBE_String_CreateSS(const CUBE_StackString* a_string)
+CUBE_String CUBE_String_CreateSS(const CUBE_StackString* a_string)
 {
     CUBE_String string;
     string.Length = a_string->Length;
@@ -80,7 +82,7 @@ inline CUBE_String CUBE_String_CreateSS(const CUBE_StackString* a_string)
 
     return string;
 }
-inline void CUBE_String_Destroy(CUBE_String* a_string)
+void CUBE_String_Destroy(CUBE_String* a_string)
 {
     if (a_string->Data != CBNULL)
     {
@@ -91,7 +93,7 @@ inline void CUBE_String_Destroy(CUBE_String* a_string)
     a_string->Length = 0;
 }
 
-inline CUBE_String CUBE_String_Copy(CUBE_String* a_string)
+CUBE_String CUBE_String_Copy(CUBE_String* a_string)
 {
     CUBE_String string;
     string.Length = a_string->Length;
@@ -106,7 +108,7 @@ inline CUBE_String CUBE_String_Copy(CUBE_String* a_string)
     return string;
 }
 
-inline CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs)
+CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs)
 {
     CUBE_String string;
     string.Length = a_lhs->Length + a_rhs->Length;
@@ -125,7 +127,7 @@ inline CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_Strin
 
     return string;
 }
-inline CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_StackString* a_rhs)
+CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_StackString* a_rhs)
 {
     CUBE_String string;
     string.Length = a_lhs->Length + a_rhs->Length;
@@ -144,7 +146,7 @@ inline CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_Stac
 
     return string;
 }
-inline CUBE_String CUBE_String_MergeC(const CUBE_String* a_lhs, const char* a_rhs)
+CUBE_String CUBE_String_MergeC(const CUBE_String* a_lhs, const char* a_rhs)
 {
     CUBE_String string;
     string.Length = a_lhs->Length;
@@ -170,22 +172,50 @@ inline CUBE_String CUBE_String_MergeC(const CUBE_String* a_lhs, const char* a_rh
 
     return string;
 }
+CUBE_String CUBE_String_MergeCL(const CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_length)
+{
+    CUBE_String string;
+    string.Length = a_lhs->Length + a_length;
 
-inline void CUBE_String_AppendS(CUBE_String* a_lhs, const CUBE_String* a_rhs)
+    string.Data = (char*)malloc(sizeof(char) * string.Length + 1);
+    CBUINT32 index = 0;
+    printf("c\n");
+    for (CBUINT32 i = 0; i < a_lhs->Length; ++i)
+    {
+        string.Data[index++] = a_lhs->Data[i];
+    }
+    printf("d\n");
+    for (CBUINT32 i = 0; i < a_length; ++i)
+    {
+        string.Data[index++] = a_rhs[i];
+    }
+    printf("e\n");
+    string.Data[string.Length] = '\0';
+
+    return string;
+}
+
+void CUBE_String_AppendS(CUBE_String* a_lhs, const CUBE_String* a_rhs)
 {
     CUBE_String string = CUBE_String_MergeS(a_lhs, a_rhs);
     CUBE_String_Destroy(a_lhs);
     *a_lhs = string;
 }
-inline void CUBE_String_AppendSS(CUBE_String* a_lhs, const CUBE_StackString* a_rhs)
+void CUBE_String_AppendSS(CUBE_String* a_lhs, const CUBE_StackString* a_rhs)
 {
     CUBE_String string = CUBE_String_MergeSS(a_lhs, a_rhs);
     CUBE_String_Destroy(a_lhs);
     *a_lhs = string;
 }
-inline void CUBE_String_AppendC(CUBE_String* a_lhs, const char* a_rhs)
+void CUBE_String_AppendC(CUBE_String* a_lhs, const char* a_rhs)
 {
     CUBE_String string = CUBE_String_MergeC(a_lhs, a_rhs);
+    CUBE_String_Destroy(a_lhs);
+    *a_lhs = string;
+}
+void CUBE_String_AppendCL(CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_length)
+{
+    CUBE_String string = CUBE_String_MergeCL(a_lhs, a_rhs, a_length);
     CUBE_String_Destroy(a_lhs);
     *a_lhs = string;
 }
