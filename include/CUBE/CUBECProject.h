@@ -38,10 +38,16 @@ typedef struct
     CBUINT32 DefineCount;
     CUBE_Path* IncludePaths;
     CBUINT32 IncludePathCount;
+    CUBE_Path* SystemIncludePaths;
+    CBUINT32 SystemIncludePathCount;
     CUBE_Path* Sources;
     CBUINT32 SourceCount;
     CUBE_String* References;
     CBUINT32 ReferenceCount;
+    CUBE_Path* Libraries;
+    CBUINT32 LibraryCount;
+    CUBE_String* CFlags;
+    CBUINT32 CFlagCount;
 } CUBE_CProject;
 
 void CUBE_CProject_Destroy(CUBE_CProject* a_project);
@@ -49,7 +55,10 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project);
 void CUBE_CProject_AppendDefine(CUBE_CProject* a_project, const char* a_define);
 void CUBE_CProject_AppendSource(CUBE_CProject* a_project, const char* a_source);
 void CUBE_CProject_AppendIncludePath(CUBE_CProject* a_project, const char* a_includePath);
+void CUBE_CProject_AppendSystemIncludePath(CUBE_CProject* a_project, const char* a_includePath);
 void CUBE_CProject_AppendReference(CUBE_CProject* a_project, const char* a_reference);
+void CUBE_CProject_AppendLibrary(CUBE_CProject* a_project, const char* a_library);
+void CUBE_CProject_AppendCFlag(CUBE_CProject* a_project, const char* a_flag);
 
 CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath);
 
@@ -85,6 +94,13 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 
     free(a_project->IncludePaths);
 
+    for (CBUINT32 i = 0; i < a_project->SystemIncludePathCount; ++i)
+    {
+        CUBE_Path_Destroy(&a_project->SystemIncludePaths[i]);
+    }
+
+    free(a_project->SystemIncludePaths);
+
     a_project->IncludePathCount = 0;
     a_project->IncludePaths = CBNULL;
 
@@ -107,6 +123,26 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 
     a_project->ReferenceCount = 0;
     a_project->References = CBNULL;
+
+    for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
+    {
+        CUBE_Path_Destroy(&a_project->Libraries[i]);
+    }
+
+    free(a_project->Libraries);
+
+    a_project->LibraryCount = 0;
+    a_project->Libraries = CBNULL;
+
+    for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
+    {
+        CUBE_String_Destroy(&a_project->CFlags[i]);
+    }
+
+    free(a_project->CFlags);
+
+    a_project->CFlagCount = 0;
+    a_project->CFlags = CBNULL;
 }
 
 void CUBE_CProject_AppendDefine(CUBE_CProject* a_project, const char* a_define)
@@ -139,6 +175,16 @@ void CUBE_CProject_AppendIncludePath(CUBE_CProject* a_project, const char* a_inc
 
     a_project->IncludePaths[includePathCount] = includePath;
 }
+void CUBE_CProject_AppendSystemIncludePath(CUBE_CProject* a_project, const char* a_includePath)
+{
+    const CBUINT32 includePathCount = a_project->SystemIncludePathCount++;
+
+    CUBE_Path includePath = CUBE_Path_CreateC(a_includePath);
+
+    a_project->SystemIncludePaths = (CUBE_Path*)realloc(a_project->SystemIncludePaths, sizeof(CUBE_Path) * a_project->SystemIncludePathCount);
+
+    a_project->SystemIncludePaths[includePathCount] = includePath;
+}
 void CUBE_CProject_AppendReference(CUBE_CProject* a_project, const char* a_reference)
 {
     const CBUINT32 referenceCount = a_project->ReferenceCount++;
@@ -148,6 +194,26 @@ void CUBE_CProject_AppendReference(CUBE_CProject* a_project, const char* a_refer
     a_project->References = (CUBE_String*)realloc(a_project->References, sizeof(CUBE_String) * a_project->ReferenceCount);
 
     a_project->References[referenceCount] = reference;
+}
+void CUBE_CProject_AppendCFlag(CUBE_CProject* a_project, const char* a_flag)
+{
+    const CBUINT32 flagCount = a_project->CFlagCount++;
+
+    CUBE_String flag = CUBE_String_CreateC(a_flag);
+
+    a_project->CFlags = (CUBE_String*)realloc(a_project->CFlags, sizeof(CUBE_String) * a_project->CFlagCount);
+
+    a_project->CFlags[flagCount] = flag;
+}
+void CUBE_CProject_AppendLibrary(CUBE_CProject* a_project, const char* a_library)
+{
+    const CBUINT32 libraryCount = a_project->LibraryCount++;
+
+    CUBE_Path library = CUBE_Path_CreateC(a_library);
+
+    a_project->Libraries = (CUBE_Path*)realloc(a_project->Libraries, sizeof(CUBE_Path) * a_project->LibraryCount);
+
+    a_project->Libraries[libraryCount] = library;
 }
 
 CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath)
@@ -223,6 +289,34 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_p
 
         CUBE_String_Destroy(&includePath);
         CUBE_String_Destroy(&includeStr);
+    }
+
+    for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
+    {
+        CUBE_CommandLine_AppendArgumentC(&commandLine, a_project->CFlags[i].Data);
+    }
+
+    if (a_project->SystemIncludePathCount > 0)
+    {
+        CUBE_String value = { 0 };
+
+        for (CBUINT32 i = 0; i < a_project->SystemIncludePathCount; ++i)
+        {
+            // printf("%s\n", a_project->SystemIncludePaths[i].Path[0].Data);
+            CUBE_String pathValue = CUBE_Path_ToString(&a_project->SystemIncludePaths[i]);
+            
+            CUBE_String_AppendS(&value, &pathValue);
+            if (i < a_project->SystemIncludePathCount - 1)
+            {
+                CUBE_String_AppendC(&value, ":");
+            }
+
+            CUBE_String_Destroy(&pathValue);
+        }
+
+        CUBE_CommandLine_AppendEnvironmentVariableC(&commandLine, "CPATH", value.Data);
+
+        CUBE_String_Destroy(&value);
     }
 
     return commandLine;
@@ -441,7 +535,7 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
         CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
 
         CUBE_CommandLine_AppendArgumentC(&commandLine, objPathStr.Data);
-        
+
         CUBE_Path_Destroy(&parentPath);
 
         CUBE_String_Destroy(&fileName);
@@ -463,6 +557,24 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
         CUBE_CommandLine_AppendArgumentC(&commandLine, reference.Data);
 
         CUBE_String_Destroy(&reference);
+    }
+
+    for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
+    {
+        CUBE_String library = CUBE_String_CreateC("-L");
+        CUBE_String libraryStr = CUBE_Path_ToString(&a_project->Libraries[i]);
+
+        CUBE_String_AppendS(&library, &libraryStr);
+
+        CUBE_CommandLine_AppendArgumentC(&commandLine, library.Data);
+
+        CUBE_String_Destroy(&library);
+        CUBE_String_Destroy(&libraryStr);
+    }
+
+    for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
+    {
+        CUBE_CommandLine_AppendArgumentC(&commandLine, a_project->CFlags[i].Data);
     }
 
     const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
@@ -534,6 +646,12 @@ CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project
 
             CUBE_Path_Destroy(&includePath);
             CUBE_String_Destroy(&includePathStr);
+        }
+
+        for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
+        {
+            CUBE_String_AppendC(&compileCommands, " ");
+            CUBE_String_AppendS(&compileCommands, &a_project->CFlags[i]);
         }
 
         CUBE_Path sourcePath = CUBE_Path_CombineP(&workingPath, &a_project->Sources[i]);

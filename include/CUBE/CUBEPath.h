@@ -45,7 +45,7 @@ CUBE_Path CUBE_Path_CreateC(const char* a_path)
     {
         ++s;
     }
-    const char* e = s + 1;
+    const char* e = s;
 
     while (*e != '\0')
     {
