@@ -410,7 +410,9 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
         CUBE_CommandLine_AppendArgumentC(&commandLine, "rcs");
 
-        CUBE_StackString libName = CUBE_StackString_MergeC(&a_project->Name, ".a");
+        CUBE_StackString libName = CUBE_StackString_CreateC("lib");
+        CUBE_StackString_AppendSS(&libName, &a_project->Name);
+        CUBE_StackString_AppendC(&libName, ".a");
         CUBE_Path libPath = CUBE_Path_CombineSS(&a_project->OutputPath, &libName);
         CUBE_String libPathStr = CUBE_Path_ToString(&libPath);
 
@@ -561,14 +563,11 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
     for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
     {
-        CUBE_String library = CUBE_String_CreateC("-L");
         CUBE_String libraryStr = CUBE_Path_ToString(&a_project->Libraries[i]);
 
-        CUBE_String_AppendS(&library, &libraryStr);
+        CUBE_CommandLine_AppendArgumentC(&commandLine, libraryStr.Data);
 
-        CUBE_CommandLine_AppendArgumentC(&commandLine, library.Data);
 
-        CUBE_String_Destroy(&library);
         CUBE_String_Destroy(&libraryStr);
     }
 
