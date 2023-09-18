@@ -22,6 +22,7 @@ typedef struct
 } CUBE_CommandLine;
 
 void CUBE_CommandLine_AppendArgumentC(CUBE_CommandLine* a_commandLine, const char* a_argument);
+void CUBE_CommandLine_AppendArgumentS(CUBE_CommandLine* a_commandLine, const CUBE_String* a_argument);
 void CUBE_CommandLine_AppendArgumentSS(CUBE_CommandLine* a_commandLine, const CUBE_StackString* a_argument);
 
 void CUBE_CommandLine_AppendEnvironmentVariableC(CUBE_CommandLine* a_commandLine, const char* a_variable, const char* a_value);
@@ -38,6 +39,16 @@ void CUBE_CommandLine_AppendArgumentC(CUBE_CommandLine* a_commandLine, const cha
     const CBUINT32 argumentCount = a_commandLine->ArgumentCount++;
 
     const CUBE_String argument = CUBE_String_CreateC(a_argument);
+
+    a_commandLine->Arguments = (CUBE_String*)realloc(a_commandLine->Arguments, sizeof(CUBE_String) * a_commandLine->ArgumentCount);
+
+    a_commandLine->Arguments[argumentCount] = argument;
+}
+void CUBE_CommandLine_AppendArgumentS(CUBE_CommandLine* a_commandLine, const CUBE_String* a_argument)
+{
+    const CBUINT32 argumentCount = a_commandLine->ArgumentCount++;
+
+    const CUBE_String argument = CUBE_String_Copy(a_argument);
 
     a_commandLine->Arguments = (CUBE_String*)realloc(a_commandLine->Arguments, sizeof(CUBE_String) * a_commandLine->ArgumentCount);
 

@@ -32,7 +32,7 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
 void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_reference);
 
-void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
+CBBOOL CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
@@ -88,7 +88,7 @@ void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_re
     a_project->References[referenceCount] = reference;
 }
 
-void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
+CBBOOL CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
 {
     CUBE_CommandLine commandLine = { 0 };
     if (a_workingPath != CBNULL)
@@ -149,7 +149,7 @@ void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath
     CUBE_String outArg = CUBE_String_CreateC("/out:");
     CUBE_String_AppendS(&outArg, &outPathStr);
 
-    CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
+    CUBE_CommandLine_AppendArgumentS(&commandLine, &outArg);
 
     CUBE_Path_Destroy(&outPath);
     CUBE_String_Destroy(&outPathStr);
@@ -162,10 +162,24 @@ void CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath
 
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
     {
-        CUBE_CommandLine_AppendArgumentC(&commandLine, a_project->Sources[i].Data);
+        CUBE_CommandLine_AppendArgumentS(&commandLine, &a_project->Sources[i]);
     }
 
-    CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
+    for (CBUINT32 i = 0; i < a_project->ReferenceCount; ++i)
+    {
+        CUBE_String reference = CUBE_String_CreateC("/reference:");
+        CUBE_String_AppendS(&reference, &a_project->References[i]);
+
+        CUBE_CommandLine_AppendArgumentS(&commandLine, &reference);
+
+        CUBE_String_Destroy(&reference);
+    }
+
+    const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
+
+    CUBE_CommandLine_Destroy(&commandLine);
+
+    return ret == 0;
 }
 #endif
 

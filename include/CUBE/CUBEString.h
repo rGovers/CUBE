@@ -21,7 +21,7 @@ CUBE_String CUBE_String_CreateSS(const CUBE_StackString* a_string);
 
 void CUBE_String_Destroy(CUBE_String* a_string);
 
-CUBE_String CUBE_String_Copy(CUBE_String* a_string);
+CUBE_String CUBE_String_Copy(const CUBE_String* a_string);
 
 CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs);
 CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_StackString* a_rhs);
@@ -93,7 +93,7 @@ void CUBE_String_Destroy(CUBE_String* a_string)
     a_string->Length = 0;
 }
 
-CUBE_String CUBE_String_Copy(CUBE_String* a_string)
+CUBE_String CUBE_String_Copy(const CUBE_String* a_string)
 {
     CUBE_String string;
     string.Length = a_string->Length;
