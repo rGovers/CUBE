@@ -27,6 +27,7 @@ void CUBE_IO_CopyDirectoryC(const char* a_source, const char* a_destination, CBB
 #include <string.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <unistd.h>
 #endif
 
 void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path)
@@ -166,6 +167,34 @@ void CUBE_IO_CopyDirectoryC(const char* a_source, const char* a_destination, CBB
                 CUBE_Path_Destroy(&fileSource);
                 CUBE_Path_Destroy(&destination);
                 CUBE_Path_Destroy(&fileDestination);
+            }
+            else if (entry->d_type == DT_LNK)
+            {
+                CUBE_Path destination = CUBE_Path_CreateC(a_destination);
+                CUBE_Path fileDestination = CUBE_Path_CombineC(&destination, entry->d_name);
+                CUBE_String fileDestinationString = CUBE_Path_ToString(&fileDestination);
+                
+                CUBE_Path source = CUBE_Path_CreateC(a_source);
+                CUBE_Path fileSource = CUBE_Path_CombineC(&source, entry->d_name);
+                CUBE_String fileSourceString = CUBE_Path_ToString(&fileSource);
+
+                char link[1024];
+                ssize_t linkSize = readlink(fileSourceString.Data, link, sizeof(link));
+
+                if (linkSize > 0)
+                {
+                    link[linkSize] = '\0';
+
+                    symlink(link, fileDestinationString.Data);
+                }
+
+                CUBE_String_Destroy(&fileSourceString);
+                CUBE_Path_Destroy(&source);
+                CUBE_Path_Destroy(&fileSource);
+
+                CUBE_Path_Destroy(&destination);
+                CUBE_Path_Destroy(&fileDestination);
+                CUBE_String_Destroy(&fileDestinationString);
             }
 
             entry = readdir(dir);
