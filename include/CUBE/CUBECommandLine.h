@@ -4,6 +4,11 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#if WIN32
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#endif
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -81,6 +86,149 @@ void CUBE_CommandLine_AppendEnvironmentVariableC(CUBE_CommandLine* a_commandLine
 
 int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String** a_lines, CBUINT32* a_lineCount)
 {
+#if WIN32
+    HANDLE hReadPipe = NULL;
+    HANDLE hWritePipe = NULL;
+    SECURITY_ATTRIBUTES sa;
+    ZeroMemory(&sa, sizeof(sa));
+    sa.bInheritHandle = TRUE;
+
+    if (!CreatePipe(&hReadPipe, &hWritePipe, &sa, 0))
+    {
+        return -1;
+    }
+
+    if (!SetHandleInformation(hReadPipe, HANDLE_FLAG_INHERIT, 0))
+    {
+        return -1;
+    }
+
+    STARTUPINFO si;
+    ZeroMemory(&si, sizeof(si));
+
+    si.cb = sizeof(si);
+    si.hStdError = hWritePipe;
+    si.hStdOutput = hWritePipe;
+    si.dwFlags |= STARTF_USESTDHANDLES;
+
+    PROCESS_INFORMATION pi;
+    ZeroMemory(&pi, sizeof(pi));
+    
+    TCHAR env[4096];
+    LPTSTR curEnv = env;
+    for (CBUINT32 i = 0; i < a_commandLine->EnvironmentVariableCount; ++i)
+    {
+        const CUBE_String variable = a_commandLine->EnvironmentVariables[i];
+        const CUBE_String value = a_commandLine->EnvironmentValues[i];
+
+        memcpy(curEnv, variable.Data, variable.Length);
+        curEnv += variable.Length;
+        *curEnv = '=';
+        ++curEnv;
+        memcpy(curEnv, value.Data, value.Length);
+        curEnv += value.Length;
+        *curEnv = '\0';
+        ++curEnv;
+    }
+
+    TCHAR workingDir[4096];
+    if (a_commandLine->Path.Length > 0)
+    {
+        memcpy(workingDir, a_commandLine->Path.Data, a_commandLine->Path.Length);
+        workingDir[a_commandLine->Path.Length] = '\0';
+    }
+    else
+    {
+        GetCurrentDirectory(4096, workingDir);
+    }
+
+    TCHAR* cmd = (TCHAR*)malloc(sizeof(TCHAR) * 16384);
+    TCHAR* curCmd = cmd;
+
+    memcpy(curCmd, a_commandLine->Command.Data, a_commandLine->Command.Length);
+    curCmd += a_commandLine->Command.Length;
+
+    for (CBUINT32 i = 0; i < a_commandLine->ArgumentCount; ++i)
+    {
+        const CUBE_String argument = a_commandLine->Arguments[i];
+
+        *curCmd = ' ';
+        ++curCmd;
+        memcpy(curCmd, argument.Data, argument.Length);
+        curCmd += argument.Length;
+    }
+
+    *curCmd = '\0';
+
+#ifdef CUBE_PRINT_COMMANDS
+    printf("[CMD] %s\n", cmd);
+#endif
+
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, env, workingDir, &si, &pi))
+    {
+        return -1;
+    }
+
+    WaitForSingleObject(pi.hProcess, INFINITE);
+
+    DWORD dwExitCode;
+    if (!GetExitCodeProcess(pi.hProcess, &dwExitCode))
+    {
+        return -1;
+    }
+
+    printf("Exit code: %d\n", dwExitCode);
+
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+
+    CloseHandle(hWritePipe);
+
+    DWORD dwRead;
+    CHAR chBuf[4096];
+
+    while (!ReadFile(hReadPipe, chBuf, 4096, &dwRead, NULL))
+    {
+        if (dwRead <= 0)
+        {
+            break;
+        }
+
+        const char* s = chBuf;
+        const char* e = s;
+
+        while (*s != '\0')
+        {
+            if (*s == '\n')
+            {
+                CUBE_String str = CUBE_String_CreateCL(e, s - e);
+
+                e = s + 1;
+
+                *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+                (*a_lines)[*a_lineCount].Length = str.Length;
+                (*a_lines)[*a_lineCount].Data = str.Data;
+                *a_lineCount += 1;
+            }
+
+            ++s;
+        }
+
+        if (e != s)
+        {
+            CUBE_String str = CUBE_String_CreateCL(e, s - e);
+
+            *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+            (*a_lines)[*a_lineCount].Length = str.Length;
+            (*a_lines)[*a_lineCount].Data = str.Data;
+            *a_lineCount += 1;
+        }
+    }
+
+    free(cmd);
+
+    return (int)dwExitCode;
+#else
     CUBE_String cmdString = { 0 };
 
     for (CBUINT32 i = 0; i < a_commandLine->EnvironmentVariableCount; ++i)
@@ -112,9 +260,6 @@ int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String*
     printf("[CMD] %s\n", cmdString.Data);
 #endif
 
-#if WIN32
-    // TODO: Implement this for windows
-#else
     FILE* fp = popen(cmdString.Data, "r");
     if (fp == NULL)
     {

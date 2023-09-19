@@ -30,7 +30,7 @@ typedef struct
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
-void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_reference);
+void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference);
 
 CBBOOL CUBE_CSProject_Compile(CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
@@ -77,7 +77,7 @@ void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source
     a_project->Sources[sourceCount] = source;
 }
 
-void CUBE_CSProject_Append_Reference(CUBE_CSProject* a_project, const char* a_reference)
+void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference)
 {
     const CBUINT32 referenceCount = a_project->ReferenceCount++;
 
