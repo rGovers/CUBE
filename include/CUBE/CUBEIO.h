@@ -11,6 +11,9 @@ void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path);
 void CUBE_IO_CreateDirectoryNRP(const CUBE_Path* a_path);
 void CUBE_IO_CreateDirectoryC(const char* a_path);
 
+void CUBE_IO_CHMODP(const CUBE_Path* a_path, CBUINT32 a_mode);
+void CUBE_IO_CHMODC(const char* a_path, CBUINT32 a_mode);
+
 void CUBE_IO_CopyFileP(const CUBE_Path* a_source, const CUBE_Path* a_destination);
 void CUBE_IO_CopyFileC(const char* a_source, const char* a_destination);
 
@@ -82,6 +85,23 @@ void CUBE_IO_CreateDirectoryC(const char* a_path)
     {
         mkdir(a_path, 0700);
     }
+#endif
+}
+
+void CUBE_IO_CHMODP(const CUBE_Path* a_path, CBUINT32 a_mode)
+{
+    CUBE_String path = CUBE_Path_ToString(a_path);
+    
+    CUBE_IO_CHMODC(path.Data, a_mode);
+
+    CUBE_String_Destroy(&path);
+}
+void CUBE_IO_CHMODC(const char* a_path, CBUINT32 a_mode)
+{
+#if WIN32
+    
+#else
+    chmod(a_path, a_mode);
 #endif
 }
 
