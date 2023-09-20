@@ -166,8 +166,12 @@ int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String*
 
     if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, env, workingDir, &si, &pi))
     {
+        free(cmd);
+
         return -1;
     }
+
+    free(cmd);
 
     WaitForSingleObject(pi.hProcess, INFINITE);
 
@@ -187,15 +191,15 @@ int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String*
     DWORD dwRead;
     CHAR chBuf[4096];
 
-    while (!ReadFile(hReadPipe, chBuf, 4096, &dwRead, NULL))
+    while (ReadFile(hReadPipe, chBuf, 4096, &dwRead, NULL))
     {
         if (dwRead <= 0)
         {
             break;
         }
 
-        const char* s = chBuf;
-        const char* e = s;
+        const CHAR* s = chBuf;
+        const CHAR* e = s;
 
         while (*s != '\0')
         {
@@ -224,8 +228,8 @@ int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String*
             *a_lineCount += 1;
         }
     }
-
-    free(cmd);
+    
+    CloseHandle(hReadPipe);
 
     return (int)dwExitCode;
 #else
