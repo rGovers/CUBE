@@ -132,6 +132,9 @@ void CUBE_IO_CopyFileC(const char* a_source, const char* a_destination)
         {
             fwrite(buffer, 1, read, destination);
         }
+
+        fclose(source);
+        fclose(destination);
     }   
 }
 
