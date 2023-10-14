@@ -262,12 +262,14 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_p
     case CUBE_CProjectLanguage_C:
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "-x c");
+        CUBE_CommandLine_AppendArgumentC(&commandLine, "-DCUBE_LANGUAGE_C");
 
         break;
     }
     case CUBE_CProjectLanguage_CPP:
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "-x c++");
+        CUBE_CommandLine_AppendArgumentC(&commandLine, "-DCUBE_LANGUAGE_CPP");
 
         break;
     }
