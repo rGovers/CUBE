@@ -25,6 +25,8 @@ typedef struct
     CUBE_StackString Name;
     e_CUBE_CSProjectTarget Target;
     CUBE_Path OutputPath;
+    CUBE_Path* IncludePaths;
+    CBUINT32 IncludePathCount;
     CUBE_Path* Sources;
     CBUINT32 SourceCount;
     CUBE_String* References;
@@ -35,6 +37,7 @@ typedef struct
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
+void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath);
 void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference);
 
 CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, e_CUBE_CProjectCompiler a_preProcessor, const char* a_preprocessorPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
@@ -61,6 +64,16 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
     a_project->SourceCount = 0;
     a_project->Sources = CBNULL;
 
+    for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
+    {
+        CUBE_Path_Destroy(&a_project->IncludePaths[i]);
+    }
+
+    free(a_project->IncludePaths);
+
+    a_project->IncludePathCount = 0;
+    a_project->IncludePaths = CBNULL;
+
     for (CBUINT32 i = 0; i < a_project->ReferenceCount; ++i)
     {
         CUBE_String_Destroy(&a_project->References[i]);
@@ -82,7 +95,16 @@ void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source
 
     a_project->Sources[sourceCount] = source;
 }
+void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath)
+{
+    const CBUINT32 includePathCount = a_project->IncludePathCount++;
 
+    CUBE_Path includePath = CUBE_Path_CreateC(a_includePath);
+
+    a_project->IncludePaths = (CUBE_Path*)realloc(a_project->IncludePaths, sizeof(CUBE_Path) * a_project->IncludePathCount);
+
+    a_project->IncludePaths[includePathCount] = includePath;
+}
 void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference)
 {
     const CBUINT32 referenceCount = a_project->ReferenceCount++;
@@ -153,6 +175,19 @@ CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const c
         CUBE_CommandLine_AppendArgumentC(&commandLine, "-P");
         CUBE_CommandLine_AppendArgumentC(&commandLine, "-x c");
         
+        for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
+        {
+            CUBE_String includePath = CUBE_String_CreateC("-I");
+            CUBE_String includePathStr = CUBE_Path_ToString(&a_project->IncludePaths[i]);
+
+            CUBE_String_AppendS(&includePath, &includePathStr);
+
+            CUBE_CommandLine_AppendArgumentS(&commandLine, &includePath);
+
+            CUBE_String_Destroy(&includePathStr);
+            CUBE_String_Destroy(&includePath);
+        }
+
         CUBE_String sourceStr = CUBE_Path_ToString(&source);
 
         CUBE_CommandLine_AppendArgumentS(&commandLine, &sourceStr);

@@ -11,6 +11,7 @@ int main(int a_argc, char* a_argv[])
     proj.Target = CUBE_CSProjectTarget_Exe;
     proj.OutputPath = CUBE_Path_CreateC("build");
     CUBE_CSProject_AppendSource(&proj, "src/Program.cs");
+    CUBE_CSProject_AppendIncludePath(&proj, "include");
 
     CUBE_String* lines = CBNULL;
     CBUINT32 lineCount = 0;
