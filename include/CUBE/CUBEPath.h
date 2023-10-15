@@ -45,6 +45,13 @@ CUBE_Path CUBE_Path_CreateC(const char* a_path)
     CUBE_Path path = { 0 };
 
     const char* s = a_path;
+    if (s[0] == '/')
+    {
+        path.PathCount = 1;
+        path.Path = (CUBE_String*)malloc(sizeof(CUBE_String) * path.PathCount);
+        path.Path[0] = CUBE_String_CreateC("/");
+    }
+
     while (*s == '/' || *s == '\\') 
     {
         ++s;
@@ -127,7 +134,7 @@ CUBE_String CUBE_Path_ToString(const CUBE_Path* a_path)
     for (CBUINT32 i = 0; i < a_path->PathCount; ++i)
     {
         CUBE_String_AppendS(&string, &a_path->Path[i]);
-        if (i < a_path->PathCount - 1)
+        if (a_path->Path[i].Data[0] != '/' && i < a_path->PathCount - 1)
         {
             CUBE_String_AppendC(&string, "/");
         }
@@ -151,7 +158,7 @@ CUBE_String CUBE_Path_ToNRString(const CUBE_Path* a_path)
             CUBE_String_AppendS(&string, &path);
         }
 
-        if (i < a_path->PathCount - 1)
+        if (path.Data[0] != '/' && i < a_path->PathCount - 1)
         {
             CUBE_String_AppendC(&string, "/");
         }
