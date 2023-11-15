@@ -44,6 +44,7 @@ typedef unsigned long long CBUINT64;
 #include "CUBE/CUBECommandLine.h"
 #include "CUBE/CUBECProject.h"
 #include "CUBE/CUBECSProject.h"
+#include "CUBE/CUBEGit.h"
 #include "CUBE/CUBEIO.h"
 #include "CUBE/CUBEPath.h"
 #include "CUBE/CUBEStackString.h"
