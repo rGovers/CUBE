@@ -31,6 +31,7 @@ typedef enum
 {
     CUBE_CProjectCompiler_GCC,
     CUBE_CProjectCompiler_MinGW,
+    CUBE_CProjectCompiler_Clang,
 } e_CUBE_CProjectCompiler;
 
 typedef struct
@@ -81,8 +82,10 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
 
 static const char CUBE_GCC_String[] = "gcc";
 static const char CUBE_MinGW_String[] = "x86_64-w64-mingw32-gcc";
+static const char CUBE_Clang_String[] = "clang";
 static const char CUBE_GCCAR_String[] = "ar";
 static const char CUBE_MinGWAR_String[] = "x86_64-w64-mingw32-ar";
+static const char CUBE_ClangAR_String[] = "llvm-ar";
 
 void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 {
@@ -305,6 +308,12 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_p
 
             break;
         }
+        case CUBE_CProjectCompiler_Clang:
+        {
+            CUBE_String_AppendC(&commandLine.Command, CUBE_Clang_String);
+
+            break;
+        }
         }
     }
 
@@ -327,14 +336,9 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_p
     }
 
     CUBE_CommandLine_AppendArgumentC(&commandLine, "-c");
-    switch (a_project->Target)
-    {
-    case CUBE_CProjectTarget_Library:
+    if (a_project->Target == CUBE_CProjectTarget_Library)
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "-fPIC");
-
-        break;
-    }
     }
 
     for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
@@ -488,6 +492,12 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
             break;
         }
+        case CUBE_CProjectCompiler_Clang:
+        {
+            CUBE_String_AppendC(&commandLine.Command, CUBE_ClangAR_String);
+
+            break;
+        }
         }
 
         CUBE_CommandLine_AppendArgumentC(&commandLine, "rcs");
@@ -497,6 +507,7 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
         switch (a_compiler)
         {
         case CUBE_CProjectCompiler_GCC:
+        case CUBE_CProjectCompiler_Clang:
         {
             CUBE_StackString_AppendC(&libName, "lib");
             CUBE_StackString_AppendSS(&libName, &a_project->Name);
@@ -605,6 +616,25 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
                 break;
             }
+            case CUBE_CProjectCompiler_Clang:
+            {
+                CUBE_String_AppendC(&commandLine.Command, CUBE_Clang_String);
+
+                CUBE_Path exePath = CUBE_Path_CombineSS(&a_project->OutputPath, &a_project->Name);
+                CUBE_String exePathStr = CUBE_Path_ToString(&exePath);
+
+                CUBE_String outArg = CUBE_String_CreateC("-o ");
+                CUBE_String_AppendS(&outArg, &exePathStr);
+
+                CUBE_CommandLine_AppendArgumentS(&commandLine, &outArg);
+
+                CUBE_String_Destroy(&outArg);
+
+                CUBE_Path_Destroy(&exePath);
+                CUBE_String_Destroy(&exePathStr);
+
+                break;
+            }
             }
         }
 
@@ -655,6 +685,28 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
             CUBE_Path_Destroy(&libPath);
             CUBE_String_Destroy(&libPathStr);
+        }
+        case CUBE_CProjectCompiler_Clang:
+        {
+            CUBE_String_AppendC(&commandLine.Command, CUBE_Clang_String);
+
+            CUBE_CommandLine_AppendArgumentC(&commandLine, "-shared");
+
+            CUBE_StackString libName = CUBE_StackString_MergeC(&a_project->Name, ".so");
+            CUBE_Path libPath = CUBE_Path_CombineSS(&a_project->OutputPath, &libName);
+            CUBE_String libPathStr = CUBE_Path_ToString(&libPath);
+
+            CUBE_String outArg = CUBE_String_CreateC("-o ");
+            CUBE_String_AppendS(&outArg, &libPathStr);
+
+            CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
+
+            CUBE_String_Destroy(&outArg);
+
+            CUBE_Path_Destroy(&libPath);
+            CUBE_String_Destroy(&libPathStr);
+
+            break;
         }
         }
 
@@ -750,6 +802,12 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
         case CUBE_CProjectCompiler_MinGW:
         {
             CUBE_String_AppendC(&compileCommands, CUBE_MinGW_String);
+
+            break;
+        }
+        case CUBE_CProjectCompiler_Clang:
+        {
+            CUBE_String_AppendC(&compileCommands, CUBE_Clang_String);
 
             break;
         }

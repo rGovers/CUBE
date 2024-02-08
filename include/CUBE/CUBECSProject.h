@@ -166,6 +166,12 @@ CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const c
 
                 break;
             }
+            case CUBE_CProjectCompiler_Clang:
+            {
+                CUBE_String_AppendC(&commandLine.Command, CUBE_Clang_String);
+
+                break;
+            }
             }
         }
 
