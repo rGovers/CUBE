@@ -24,6 +24,9 @@ void CUBE_IO_CopyFileC(const char* a_source, const char* a_destination);
 void CUBE_IO_CopyDirectoryP(const CUBE_Path* a_source, const CUBE_Path* a_destination, CBBOOL a_recursive);
 void CUBE_IO_CopyDirectoryC(const char* a_source, const char* a_destination, CBBOOL a_recursive);
 
+CBBOOL CUBE_IO_WriteFileP(const CUBE_Path* a_path, const char* a_data, CBUINT32 a_dataSize);
+CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dataSize);
+
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
 #if WIN32
@@ -230,6 +233,32 @@ void CUBE_IO_CopyDirectoryC(const char* a_source, const char* a_destination, CBB
         closedir(dir);  
     }    
 #endif
+}
+
+CBBOOL CUBE_IO_WriteFileP(const CUBE_Path* a_path, const char* a_data, CBUINT32 a_dataSize)
+{
+    CUBE_String path = CUBE_Path_ToString(a_path);
+
+    CBBOOL ret = CUBE_IO_WriteFileC(path.Data, a_data, a_dataSize);
+
+    CUBE_String_Destroy(&path);
+
+    return ret;
+}
+CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dataSize)
+{
+    FILE* fp = fopen(a_path, "wb");
+
+    if (fp == CBNULL)
+    {
+        return CBFALSE;
+    }
+
+    fwrite(a_data, 1, a_dataSize, fp);
+
+    fclose(fp);
+
+    return CBTRUE;
 }
 
 #endif

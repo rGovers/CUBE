@@ -57,6 +57,8 @@ typedef struct
 
 void CUBE_CProject_Destroy(CUBE_CProject* a_project);
 
+void CUBE_CProject_PrependPaths(CUBE_CProject* a_project, const char* a_path, CBBOOL a_includeLibraries);
+
 void CUBE_CProject_AppendDefine(CUBE_CProject* a_project, const char* a_define);
 void CUBE_CProject_AppendSource(CUBE_CProject* a_project, const char* a_source);
 void CUBE_CProject_AppendIncludePath(CUBE_CProject* a_project, const char* a_includePath);
@@ -65,13 +67,17 @@ void CUBE_CProject_AppendReference(CUBE_CProject* a_project, const char* a_refer
 void CUBE_CProject_AppendLibrary(CUBE_CProject* a_project, const char* a_library);
 void CUBE_CProject_AppendCFlag(CUBE_CProject* a_project, const char* a_flag);
 
-CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath);
-
 CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_line, CBUINT32* a_lineCount);
+
 CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath);
+CUBE_String CUBE_CProject_GenerateMultiCompileCommands(const CUBE_CProject* a_projects, CBUINT32 a_projectCount, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath);
 
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
+
+CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath);
+
+CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath);
 
 static const char CUBE_GCC_String[] = "gcc";
 static const char CUBE_MinGW_String[] = "x86_64-w64-mingw32-gcc";
@@ -104,6 +110,9 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 
     free(a_project->IncludePaths);
 
+    a_project->IncludePathCount = 0;
+    a_project->IncludePaths = CBNULL;
+
     for (CBUINT32 i = 0; i < a_project->SystemIncludePathCount; ++i)
     {
         CUBE_Path_Destroy(&a_project->SystemIncludePaths[i]);
@@ -111,8 +120,8 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 
     free(a_project->SystemIncludePaths);
 
-    a_project->IncludePathCount = 0;
-    a_project->IncludePaths = CBNULL;
+    a_project->SystemIncludePathCount = 0;
+    a_project->SystemIncludePaths = CBNULL;
 
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
     {
@@ -153,6 +162,48 @@ void CUBE_CProject_Destroy(CUBE_CProject* a_project)
 
     a_project->CFlagCount = 0;
     a_project->CFlags = CBNULL;
+}
+
+void CUBE_CProject_PrependPaths(CUBE_CProject* a_project, const char* a_path, CBBOOL a_includeLibraries)
+{
+    CUBE_Path path = CUBE_Path_CreateC(a_path);
+    CUBE_Path oldPath = a_project->OutputPath;
+
+    a_project->OutputPath = CUBE_Path_CombineP(&path, &oldPath);
+
+    CUBE_Path_Destroy(&oldPath);
+
+    for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
+    {
+        oldPath = a_project->IncludePaths[i];
+
+        a_project->IncludePaths[i] = CUBE_Path_CombineP(&path, &oldPath);
+
+        CUBE_Path_Destroy(&oldPath);
+    }
+
+    for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
+    {
+        oldPath = a_project->Sources[i];
+
+        a_project->Sources[i] = CUBE_Path_CombineP(&path, &oldPath);
+
+        CUBE_Path_Destroy(&oldPath);
+    }
+
+    if (a_includeLibraries)
+    {
+        for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
+        {
+            oldPath = a_project->Libraries[i];
+
+            a_project->Libraries[i] = CUBE_Path_CombineP(&path, &oldPath);
+
+            CUBE_Path_Destroy(&oldPath);
+        }
+    }
+
+    CUBE_Path_Destroy(&path);
 }
 
 void CUBE_CProject_AppendDefine(CUBE_CProject* a_project, const char* a_define)
@@ -670,13 +721,11 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
     return ret == 0;
 }
-CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath)
+
+CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath)
 {
     CUBE_String compileCommands = { 0 };
-    CUBE_String_AppendC(&compileCommands, "[\n");
-
-    CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
-    CUBE_Path outPath = CUBE_Path_CombineP(&workingPath, &a_project->OutputPath);
+    CUBE_Path outPath = CUBE_Path_CombineP(a_workingPath, &a_project->OutputPath);
     CUBE_String outPathStr = CUBE_Path_ToString(&outPath);
 
     CUBE_String directory = CUBE_String_CreateC("    \"directory\": \"");
@@ -732,7 +781,7 @@ CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project
         {
             CUBE_String_AppendC(&compileCommands, " -I");
             
-            CUBE_Path includePath = CUBE_Path_CombineP(&workingPath, &a_project->IncludePaths[i]);
+            CUBE_Path includePath = CUBE_Path_CombineP(a_workingPath, &a_project->IncludePaths[i]);
             CUBE_String includePathStr = CUBE_Path_ToString(&includePath);
 
             CUBE_String_AppendS(&compileCommands, &includePathStr);
@@ -747,7 +796,7 @@ CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project
             CUBE_String_AppendS(&compileCommands, &a_project->CFlags[i]);
         }
 
-        CUBE_Path sourcePath = CUBE_Path_CombineP(&workingPath, &a_project->Sources[i]);
+        CUBE_Path sourcePath = CUBE_Path_CombineP(a_workingPath, &a_project->Sources[i]);
         CUBE_String sourcePathStr = CUBE_Path_ToString(&sourcePath);
 
         CUBE_Path parentPath = CUBE_Path_ParentPath(&a_project->Sources[i]);
@@ -768,7 +817,7 @@ CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project
 
         CUBE_String_AppendC(&compileCommands, "    \"file\": \"");
         CUBE_String_AppendS(&compileCommands, &sourcePathStr);
-        CUBE_String_AppendC(&compileCommands, "\"\n");
+        CUBE_String_AppendC(&compileCommands, "\",\n");
 
         CUBE_String_AppendC(&compileCommands, "    \"output\": \"");
         CUBE_String_AppendS(&compileCommands, &objPathStr);
@@ -795,16 +844,57 @@ CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project
         }
     }
 
-    CUBE_Path_Destroy(&workingPath);
+    CUBE_String_Destroy(&directory);
     CUBE_Path_Destroy(&outPath);
     CUBE_String_Destroy(&outPathStr);
 
-    CUBE_String_Destroy(&directory);
+    return compileCommands;
+}
+
+CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath)
+{
+    CUBE_String compileCommands = { 0 };
+    CUBE_String_AppendC(&compileCommands, "[\n");
+
+    CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
+    
+    CUBE_String str = CUBEI_CProject_CreateProjectCompileCommands(a_project, a_compiler, &workingPath);
+    CUBE_String_AppendS(&compileCommands, &str);
+    CUBE_String_Destroy(&str);
+
+    CUBE_Path_Destroy(&workingPath);
+    
+    CUBE_String_AppendC(&compileCommands, "]\n");
+
+    return compileCommands;
+}
+CUBE_String CUBE_CProject_GenerateMultiCompileCommands(const CUBE_CProject* a_projects, CBUINT32 a_projectCount, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath)
+{
+    CUBE_String compileCommands = { 0 };
+    CUBE_String_AppendC(&compileCommands, "[\n");
+
+    CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
+
+    const CBUINT32 lastIndex = a_projectCount - 1;
+    for (CBUINT32 i = 0; i < a_projectCount; ++i)
+    {
+        CUBE_String str = CUBEI_CProject_CreateProjectCompileCommands(&(a_projects[i]), a_compiler, &workingPath);
+        CUBE_String_AppendS(&compileCommands, &str);
+        CUBE_String_Destroy(&str);
+
+        if (i < lastIndex)
+        {
+            CUBE_String_AppendC(&compileCommands, ",\n");
+        }
+    }
+
+    CUBE_Path_Destroy(&workingPath);
 
     CUBE_String_AppendC(&compileCommands, "]\n");
 
     return compileCommands;
 }
+
 #endif
 
 #ifdef __cplusplus
