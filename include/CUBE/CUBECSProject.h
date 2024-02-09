@@ -172,6 +172,12 @@ CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const c
 
                 break;
             }
+            case CUBE_CProjectCompiler_Zig:
+            {
+                CUBE_String_AppendC(&commandLine.Command, CUBE_ZigCC_String);
+
+                break;
+            }
             }
         }
 
