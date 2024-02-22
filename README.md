@@ -8,8 +8,10 @@ CUBE is distributed under the MIT License
 ## Supported Compilers
 
 ### C/C++
+* Clang
 * GCC
 * MinGW
+* Zig
 
 ### CSharp
 * csc

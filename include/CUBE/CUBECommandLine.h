@@ -308,6 +308,8 @@ int CUBE_CommandLine_Execute(const CUBE_CommandLine* a_commandLine, CUBE_String*
         }
     }
 
+    CUBE_String_Destroy(&cmdString);
+
     return pclose(fp);
 #endif
 }
@@ -332,6 +334,14 @@ void CUBE_CommandLine_Destroy(CUBE_CommandLine* a_commandLine)
         CUBE_String_Destroy(&a_commandLine->EnvironmentVariables[i]);
         CUBE_String_Destroy(&a_commandLine->EnvironmentValues[i]);
     }
+
+    free(a_commandLine->EnvironmentVariables);
+    free(a_commandLine->EnvironmentValues);
+
+    a_commandLine->EnvironmentVariableCount = 0;
+
+    a_commandLine->EnvironmentVariables = CBNULL;
+    a_commandLine->EnvironmentValues = CBNULL;
 }
 #endif
 
