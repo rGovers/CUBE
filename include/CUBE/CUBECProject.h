@@ -63,10 +63,14 @@ void CUBE_CProject_PrependPaths(CUBE_CProject* a_project, const char* a_path, CB
 
 void CUBE_CProject_AppendDefine(CUBE_CProject* a_project, const char* a_define);
 void CUBE_CProject_AppendSource(CUBE_CProject* a_project, const char* a_source);
+void CUBEI_CProject_AppendSources(CUBE_CProject* a_project, const char* a_sources[]);
+#define CUBE_CProject_AppendSources(project, ...) CUBEI_CProject_AppendSources(project, (const char*[]){ __VA_ARGS__, CBNULL })
 void CUBE_CProject_AppendIncludePath(CUBE_CProject* a_project, const char* a_includePath);
 void CUBE_CProject_AppendSystemIncludePath(CUBE_CProject* a_project, const char* a_includePath);
 void CUBE_CProject_AppendReference(CUBE_CProject* a_project, const char* a_reference);
 void CUBE_CProject_AppendLibrary(CUBE_CProject* a_project, const char* a_library);
+void CUBEI_CProject_AppendLibraries(CUBE_CProject* a_project, const char* a_libraries[]);
+#define CUBE_CProject_AppendLibraries(project, ...) CUBEI_CProject_AppendLibraries(project, (const char*[]){ __VA_ARGS__, CBNULL })
 void CUBE_CProject_AppendCFlag(CUBE_CProject* a_project, const char* a_flag);
 
 CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_line, CBUINT32* a_lineCount);
@@ -227,11 +231,30 @@ void CUBE_CProject_AppendSource(CUBE_CProject* a_project, const char* a_source)
 {
     const CBUINT32 sourceCount = a_project->SourceCount++;
 
-    CUBE_Path source = CUBE_Path_CreateC(a_source);
-
     a_project->Sources = (CUBE_Path*)realloc(a_project->Sources, sizeof(CUBE_Path) * a_project->SourceCount);
 
-    a_project->Sources[sourceCount] = source;
+    a_project->Sources[sourceCount] = CUBE_Path_CreateC(a_source);
+}
+void CUBEI_CProject_AppendSources(CUBE_CProject* a_project, const char* a_sources[])
+{
+    const char** end = a_sources;
+    while (*end != CBNULL)
+    {
+        ++end;
+    }
+
+    const CBUINT32 projectSources = a_project->SourceCount;
+    const CBUINT32 sourceCount = (CBUINT32)(end - a_sources);
+    const CBUINT32 finalCount = projectSources + sourceCount;
+
+    a_project->Sources = (CUBE_Path*)realloc(a_project->Sources, sizeof(CUBE_Path) * finalCount);
+
+    for (CBUINT32 i = 0; i < sourceCount; ++i)
+    {
+        a_project->Sources[projectSources + i] = CUBE_Path_CreateC(a_sources[i]);
+    }
+
+    a_project->SourceCount = finalCount;
 }
 void CUBE_CProject_AppendIncludePath(CUBE_CProject* a_project, const char* a_includePath)
 {
@@ -282,6 +305,27 @@ void CUBE_CProject_AppendLibrary(CUBE_CProject* a_project, const char* a_library
     a_project->Libraries = (CUBE_Path*)realloc(a_project->Libraries, sizeof(CUBE_Path) * a_project->LibraryCount);
 
     a_project->Libraries[libraryCount] = library;
+}
+void CUBEI_CProject_AppendLibraries(CUBE_CProject *a_project, const char* a_libraries[])
+{
+    const char** end = a_libraries;
+    while (*end != CBNULL)
+    {
+        ++end;
+    }
+
+    const CBUINT32 projectLibraries = a_project->LibraryCount;
+    const CBUINT32 libraryCount = (CBUINT32)(end - a_libraries);
+    const CBUINT32 finalCount = projectLibraries + libraryCount;
+
+    a_project->Libraries = (CUBE_Path*)realloc(a_project->Libraries, sizeof(CUBE_Path) * finalCount);
+
+    for (CBUINT32 i = 0; i < libraryCount; ++i)
+    {
+        a_project->Libraries[projectLibraries + i] = CUBE_Path_CreateC(a_libraries[i]);
+    }
+
+    a_project->LibraryCount = finalCount;
 }
 
 CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath)
@@ -417,26 +461,21 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_p
     return commandLine;
 }
 
-CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
+CUBE_CommandLine CUBEI_CProject_CreateObjectFileCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, const CUBE_Path* a_source, const CUBE_Path* a_objOut)
 {
-    CUBE_Path objectOutpath = CUBE_Path_CombineC(&a_project->OutputPath, "obj");
+    CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath);
 
-    for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
-    {
-        CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath);
+        CUBE_String sourceStr = CUBE_Path_ToString(a_source);
 
-        const CUBE_Path source = a_project->Sources[i];
-        CUBE_String sourceStr = CUBE_Path_ToString(&source);
-
-        CUBE_Path parentPath = CUBE_Path_ParentPath(&source);
+        CUBE_Path parentPath = CUBE_Path_ParentPath(a_source);
         CUBE_String parentPathStr = CUBE_Path_ToString(&parentPath);
 
-        CUBE_String fileName = CUBE_Path_Filename(&source);
-        CUBE_String extension = CUBE_Path_Extension(&source);
+        CUBE_String fileName = CUBE_Path_Filename(a_source);
+        CUBE_String extension = CUBE_Path_Extension(a_source);
 
         CUBE_String filenameObj = CUBE_String_MergeC(&fileName, ".o");
 
-        CUBE_Path outPath = CUBE_Path_CombineS(&objectOutpath, &parentPathStr);
+        CUBE_Path outPath = CUBE_Path_CombineS(a_objOut, &parentPathStr);
 
         if (a_workingPath != CBNULL)
         {
@@ -462,15 +501,7 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
         CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
         CUBE_CommandLine_AppendArgumentC(&commandLine, sourceStr.Data);
 
-        const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
-
         CUBE_String_Destroy(&outArg);
-
-        CUBE_Path_Destroy(&objectPath);
-        CUBE_String_Destroy(&objectPathStr);
-
-        CUBE_CommandLine_Destroy(&commandLine);
-
         CUBE_String_Destroy(&sourceStr);
 
         CUBE_Path_Destroy(&parentPath);
@@ -483,14 +514,14 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
         CUBE_Path_Destroy(&outPath);
 
-        if (ret != 0)
-        {
-            CUBE_Path_Destroy(&objectOutpath);
+        CUBE_Path_Destroy(&objectPath);
+        CUBE_String_Destroy(&objectPathStr);
 
-            return CBFALSE;
-        }
-    }
+        return commandLine;
+}
 
+CBBOOL CUBE_CProject_LinkProject(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, const CUBE_Path* a_objOut, CUBE_String** a_lines, CBUINT32* a_lineCount)
+{
     CUBE_CommandLine commandLine = { 0 };
     if (a_workingPath != CBNULL)
     {
@@ -569,7 +600,7 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
             CUBE_String fileName = CUBE_Path_Filename(&source);
             CUBE_String objName = CUBE_String_MergeC(&fileName, ".o");
 
-            CUBE_Path objDir = CUBE_Path_CombineP(&objectOutpath, &parentPath);
+            CUBE_Path objDir = CUBE_Path_CombineP(a_objOut, &parentPath);
             CUBE_Path objPath = CUBE_Path_CombineS(&objDir, &objName);
 
             CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
@@ -586,8 +617,6 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
             CUBE_String_Destroy(&objPathStr);
         }
-
-        CUBE_Path_Destroy(&objectOutpath);
 
         const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
 
@@ -820,7 +849,7 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
         CUBE_String fileName = CUBE_Path_Filename(&source);
         CUBE_String objName = CUBE_String_MergeC(&fileName, ".o");
 
-        CUBE_Path objDir = CUBE_Path_CombineP(&objectOutpath, &parentPath);
+        CUBE_Path objDir = CUBE_Path_CombineP(a_objOut, &parentPath);
         CUBE_Path objPath = CUBE_Path_CombineS(&objDir, &objName);
 
         CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
@@ -837,8 +866,6 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
         CUBE_String_Destroy(&objPathStr);
     }
-
-    CUBE_Path_Destroy(&objectOutpath);
 
     for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
     {
@@ -869,6 +896,108 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
     CUBE_CommandLine_Destroy(&commandLine);
 
     return ret == 0;
+}
+
+CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CBUINT32 a_jobs, CUBE_String** a_lines, CBUINT32* a_lineCount)
+{
+    CUBE_Path objectOutpath = CUBE_Path_CombineC(&a_project->OutputPath, "obj");
+
+    typedef struct
+    {
+        CBBOOL State;
+        CUBE_CommandLine CommandLine;
+    } ObjectData;
+
+    CBUINT32 input = 0;
+    if (a_jobs < 1)
+    {
+        a_jobs = 1;
+    }
+
+    ObjectData* commandObjects = (ObjectData*)malloc(sizeof(ObjectData) * a_jobs);
+    memset(commandObjects, 0, sizeof(ObjectData) * a_jobs);
+
+    for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
+    {
+        CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
+
+        CUBE_CommandLine_BeginExecution(&commandLine);
+
+        while (1)
+        {
+            input = (input + 1) % a_jobs;
+
+            if (!commandObjects[input].State)
+            {
+                commandObjects[input].State = CBTRUE;
+                commandObjects[input].CommandLine = commandLine;
+
+                break;
+            }
+
+            CUBE_CommandLine prevCmdLine = commandObjects[input].CommandLine;
+
+            if (!CUBE_CommandLine_PollExecution(&prevCmdLine))
+            {
+                CUBE_CommandLine_EndExecution(&prevCmdLine, a_lines, a_lineCount);
+
+                CUBE_CommandLine_Destroy(&prevCmdLine);
+
+                commandObjects[input].CommandLine = commandLine;
+
+                break;
+            }
+        }
+    }
+
+    for (CBUINT32 i = 0; i < a_jobs; ++i)
+    {
+        if (commandObjects[i].State)
+        {
+            CUBE_CommandLine cmdLine = commandObjects[i].CommandLine;
+
+            while (CUBE_CommandLine_PollExecution(&cmdLine)) { }
+
+            CUBE_CommandLine_EndExecution(&cmdLine, a_lines, a_lineCount);
+            CUBE_CommandLine_Destroy(&cmdLine);
+
+            commandObjects[i].State = CBFALSE;
+        }
+    }
+
+    free(commandObjects);
+
+    const CBBOOL ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
+
+    CUBE_Path_Destroy(&objectOutpath);
+
+    return ret;
+}
+CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
+{
+    CUBE_Path objectOutpath = CUBE_Path_CombineC(&a_project->OutputPath, "obj");
+
+    for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
+    {
+        CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
+
+        const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
+
+        CUBE_CommandLine_Destroy(&commandLine);
+
+        if (ret != 0)
+        {
+            CUBE_Path_Destroy(&objectOutpath);
+
+            return CBFALSE;
+        }
+    }
+
+    const CBBOOL ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
+
+    CUBE_Path_Destroy(&objectOutpath);
+
+    return ret;
 }
 
 CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath)

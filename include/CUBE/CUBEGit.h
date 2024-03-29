@@ -43,6 +43,8 @@ CUBE_StackString CUBE_Git_GetCommitHash()
         CUBE_String_Destroy(&output[i]);
     }
 
+    free(output);
+
     return commitHash;
 }
 CUBE_StackString CUBE_Git_GetCommitHashShort()
@@ -67,6 +69,8 @@ CUBE_StackString CUBE_Git_GetCommitHashShort()
     {
         CUBE_String_Destroy(&output[i]);
     }
+
+    free(output);
 
     return commitHash;
 }
@@ -94,6 +98,8 @@ CUBE_StackString CUBE_Git_GetCommitHashP(const CUBE_Path* a_workingPath)
         CUBE_String_Destroy(&output[i]);
     }
 
+    free(output);
+
     return commitHash;
 }
 CUBE_StackString CUBE_Git_GetCommitHashShortP(const CUBE_Path* a_workingPath)
@@ -119,6 +125,8 @@ CUBE_StackString CUBE_Git_GetCommitHashShortP(const CUBE_Path* a_workingPath)
     {
         CUBE_String_Destroy(&output[i]);
     }
+
+    free(output);
 
     return commitHash;
 }
