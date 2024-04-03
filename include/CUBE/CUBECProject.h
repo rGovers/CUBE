@@ -1024,6 +1024,8 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
         }
     }
 
+    CBBOOL ret = CBTRUE;
+
     for (CBUINT32 i = 0; i < a_jobs; ++i)
     {
         if (commandObjects[i].State)
@@ -1032,7 +1034,11 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
 
             while (CUBE_CommandLine_PollExecution(&cmdLine)) { }
 
-            CUBE_CommandLine_EndExecution(&cmdLine, a_lines, a_lineCount);
+            if (CUBE_CommandLine_EndExecution(&cmdLine, a_lines, a_lineCount) != 0)
+            {
+                ret = CBFALSE;
+            }
+            
             CUBE_CommandLine_Destroy(&cmdLine);
 
             commandObjects[i].State = CBFALSE;
@@ -1041,7 +1047,12 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
 
     free(commandObjects);
 
-    const CBBOOL ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
+    if (!ret)
+    {
+        return CBFALSE;
+    }
+
+    ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
 
     CUBE_Path_Destroy(&objectOutpath);
 
