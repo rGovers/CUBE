@@ -37,6 +37,8 @@ typedef struct
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
+void CUBEI_CSProject_AppendSources(CUBE_CSProject* a_project, const char* a_sources[]);
+#define CUBE_CSProject_AppendSources(project, ...) CUBEI_CSProject_AppendSources(project, (const char*[]){ __VA_ARGS__, CBNULL })
 void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath);
 void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference);
 
@@ -94,6 +96,27 @@ void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source
     a_project->Sources = (CUBE_Path*)realloc(a_project->Sources, sizeof(CUBE_Path) * a_project->SourceCount);
 
     a_project->Sources[sourceCount] = source;
+}
+void CUBEI_CSProject_AppendSources(CUBE_CSProject* a_project, const char* a_sources[])
+{
+    const char** end = a_sources;
+    while (*end != CBNULL) 
+    {
+        ++end;
+    }
+
+    const CBUINT32 projectSources = a_project->SourceCount;
+    const CBUINT32 sourceCount = (CBUINT32)(end - a_sources);
+    const CBUINT32 finalCount = projectSources + sourceCount;
+
+    a_project->Sources = (CUBE_Path*)realloc(a_project->Sources, sizeof(CUBE_Path) * finalCount);
+
+    for (CBUINT32 i = 0; i < sourceCount; ++i)
+    {
+        a_project->Sources[projectSources + i] = CUBE_Path_CreateC(a_sources[i]);
+    }
+
+    a_project->SourceCount = finalCount;
 }
 void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath)
 {
@@ -457,7 +480,7 @@ CBBOOL CUBE_CSProject_Compile(const CUBE_CSProject* a_project, const char* a_wor
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2024 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

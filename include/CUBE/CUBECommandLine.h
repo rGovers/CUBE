@@ -120,6 +120,7 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
     LPTSTR workingDir = NULL;
     HANDLE hReadPipe = NULL;
     HANDLE hWritePipe = NULL;
+    CUBEI_WindowsCommandData* data = CBNULL;
 
     TCHAR env[4096];
     LPTSTR curEnv = env;
@@ -228,13 +229,13 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
     free(workingDir);
     free(cmd);
 
-    CUBEI_WindowsCommandData* data = (CUBEI_WindowsCommandData*)malloc(sizeof(CUBEI_WindowsCommandData));
+    data = (CUBEI_WindowsCommandData*)malloc(sizeof(CUBEI_WindowsCommandData));
 
     data->ReadPipe = hReadPipe;
     data->WritePipe = hWritePipe;
     data->ProcessInformation = pi;
 
-    a_commandLine.Data = data;
+    a_commandLine->Data = data;
 
     return CBTRUE;
 
@@ -256,7 +257,7 @@ Cleanup:;
         CloseHandle(hWritePipe);
     }
 
-    return CBFALSE:
+    return CBFALSE;
 #else
     char** arguments = NULL;
     char* arg = NULL;
@@ -395,7 +396,7 @@ CBBOOL CUBE_CommandLine_PollExecution(CUBE_CommandLine* a_commandLine)
         return CBFALSE;
     }
 
-    switch (WaitForSingleObject(data.ProcessInformation.hProcess, 0))
+    switch (WaitForSingleObject(data->ProcessInformation.hProcess, 0))
     {
     case WAIT_OBJECT_0:
     case WAIT_TIMEOUT:
@@ -477,7 +478,7 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
     DWORD dwRead;
     CHAR chBuf[4096];
-    while (ReadFile(hReadPipe, chBuf, sizeof(chBuf), &dwRead, NULL))
+    while (ReadFile(data->ReadPipe, chBuf, sizeof(chBuf), &dwRead, NULL))
     {
         if (dwRead <= 0)
         {
@@ -530,12 +531,12 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
     const int ret = data->Status;
 
-    char buffer[1024];
-    while (read(data->Pipe, buffer, sizeof(buffer)) > 0)
+    char buffer[4096];
+    while (read(data->Pipe, buffer, sizeof(buffer) - 1) > 0)
     {
         const char* s = buffer;
         const char* e = s;
-        while (*s != '\0')
+        while (*s != 0 && s - buffer < sizeof(buffer) - 1)
         {
             if (*s == '\n')
             {
@@ -635,7 +636,7 @@ void CUBE_CommandLine_Destroy(CUBE_CommandLine* a_commandLine)
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2024 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
