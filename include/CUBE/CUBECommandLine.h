@@ -141,7 +141,7 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
         ++curEnv;
         memcpy(curEnv, value.Data, value.Length);
         curEnv += value.Length;
-        *curEnv = '\0';
+        *curEnv = 0;
         ++curEnv;
     }
 
@@ -156,7 +156,7 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
 
         workingDir = (LPTSTR)malloc(a_commandLine->Path.Length + 1);
         memcpy(workingDir, a_commandLine->Path.Data, a_commandLine->Path.Length);
-        workingDir[a_commandLine->Path.Length] = '\0';
+        workingDir[a_commandLine->Path.Length] = 0;
     }
     else
     {
@@ -187,7 +187,7 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
         curCmd += argument.Length;
     }
 
-    *curCmd = '\0';
+    *curCmd = 0;
 
 #ifdef CUBE_PRINT_COMMANDS
     printf("[CMD] %s\n", cmd);
@@ -399,6 +399,17 @@ CBBOOL CUBE_CommandLine_PollExecution(CUBE_CommandLine* a_commandLine)
     switch (WaitForSingleObject(data->ProcessInformation.hProcess, 0))
     {
     case WAIT_OBJECT_0:
+    {
+        DWORD exitCode;
+
+        GetExitCodeProcess(data->ProcessInformation.hProcess, &exitCode);
+        if (exitCode != STILL_ACTIVE)
+        {
+            return CBFALSE;
+        }
+
+        return CBTRUE;
+    }
     case WAIT_TIMEOUT:
     {
         return CBTRUE;
@@ -459,7 +470,7 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 {
 #ifdef WIN32
     CUBEI_WindowsCommandData* data = (CUBEI_WindowsCommandData*)a_commandLine->Data;
-    a_commandLine->Data = NULL;
+    a_commandLine->Data = CBNULL;
     if (data == CBNULL)
     {
         return -1;
