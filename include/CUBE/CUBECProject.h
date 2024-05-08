@@ -1122,6 +1122,26 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
 
             break;
         }
+        case CUBE_CProjectCompiler_Zig:
+        {
+            switch (a_project->Language) 
+            {
+            case CUBE_CProjectLanguage_C:
+            {
+                CUBE_String_AppendC(&compileCommands, CUBE_ZigCC_String);
+
+                break;
+            }
+            case CUBE_CProjectLanguage_CPP:
+            {
+                CUBE_String_AppendC(&compileCommands, CUBE_ZigCPP_String);
+
+                break;
+            }
+            }
+
+            break;
+        }
         }
 
         switch (a_project->Language)
