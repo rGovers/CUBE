@@ -168,9 +168,22 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
     cmd = (TCHAR*)malloc(sizeof(TCHAR) * cmdBufferSize);
     TCHAR* curCmd = cmd;
 
-    memcpy(curCmd, a_commandLine->Command.Data, a_commandLine->Command.Length);
-    curCmd += a_commandLine->Command.Length;
+    if (strstr(a_commandLine->Command.Data, ".bat") != NULL)
+    {
+        CUBE_String cmdStr = CUBE_String_CreateC("cmd.exe /C ");
+        CUBE_String_AppendS(&cmdStr, &a_commandLine->Command);
 
+        memcpy(curCmd, cmdStr.Data, cmdStr.Length);
+        curCmd += cmdStr.Length;
+
+        CUBE_String_Destroy(&cmdStr);
+    }
+    else
+    {
+        memcpy(curCmd, a_commandLine->Command.Data, a_commandLine->Command.Length);
+        curCmd += a_commandLine->Command.Length;
+    }
+    
     for (CBUINT32 i = 0; i < a_commandLine->ArgumentCount; ++i)
     {
         const CUBE_String argument = a_commandLine->Arguments[i];
