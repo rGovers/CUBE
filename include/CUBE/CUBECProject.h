@@ -1166,6 +1166,15 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
             CUBE_String_AppendS(&compileCommands, &a_project->Defines[i]);
         }
 
+        if (a_project->Language == CUBE_CProjectLanguage_C)
+        {
+            CUBE_String_AppendC(&compileCommands, " -DCUBE_LANGUAGE_C");
+        }
+        else
+        {
+            CUBE_String_AppendC(&compileCommands, " -DCUBE_LANGUAGE_CPP");
+        }
+
         for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
         {
             CUBE_String_AppendC(&compileCommands, " -I");
