@@ -121,8 +121,10 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
     HANDLE hReadPipe = NULL;
     HANDLE hWritePipe = NULL;
     CUBEI_WindowsCommandData* data = CBNULL;
+    TCHAR* finalEnv = NULL;
 
     TCHAR env[4096];
+    ZeroMemory(env, sizeof(env));
     LPTSTR curEnv = env;
     for (CBUINT32 i = 0; i < a_commandLine->EnvironmentVariableCount; ++i)
     {
@@ -154,18 +156,17 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
             return CBFALSE;
         }
 
-        workingDir = (LPTSTR)malloc(a_commandLine->Path.Length + 1);
+        workingDir = (LPTSTR)calloc(a_commandLine->Path.Length + 1, sizeof(TCHAR));
         memcpy(workingDir, a_commandLine->Path.Data, a_commandLine->Path.Length);
-        workingDir[a_commandLine->Path.Length] = 0;
     }
     else
     {
         const DWORD res = GetCurrentDirectory(0, NULL);
-        workingDir = (LPTSTR)malloc(res);
+        workingDir = (LPTSTR)calloc(res + 1, sizeof(TCHAR));
         GetCurrentDirectory(res, workingDir);
     }
 
-    cmd = (TCHAR*)malloc(sizeof(TCHAR) * cmdBufferSize);
+    cmd = (TCHAR*)calloc(cmdBufferSize, sizeof(TCHAR));
     TCHAR* curCmd = cmd;
 
     if (strstr(a_commandLine->Command.Data, ".bat") != NULL)
@@ -200,8 +201,6 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
         curCmd += argument.Length;
     }
 
-    *curCmd = 0;
-
 #ifdef CUBE_PRINT_COMMANDS
     printf("[CMD] %s\n", cmd);
 #endif
@@ -234,7 +233,12 @@ CBBOOL CUBE_CommandLine_BeginExecution(CUBE_CommandLine* a_commandLine)
     PROCESS_INFORMATION pi;
     ZeroMemory(&pi, sizeof(pi));
 
-    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, env, workingDir, &si, &pi))
+    if (env[0] != 0)
+    {
+        finalEnv = env;
+    }
+
+    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, 0, finalEnv, workingDir, &si, &pi))
     {
         goto Cleanup;
     }
@@ -409,29 +413,16 @@ CBBOOL CUBE_CommandLine_PollExecution(CUBE_CommandLine* a_commandLine)
         return CBFALSE;
     }
 
-    switch (WaitForSingleObject(data->ProcessInformation.hProcess, 0))
-    {
-    case WAIT_OBJECT_0:
-    {
-        DWORD exitCode;
+    DWORD exitCode;
 
-        GetExitCodeProcess(data->ProcessInformation.hProcess, &exitCode);
-        if (exitCode != STILL_ACTIVE)
-        {
-            return CBFALSE;
-        }
-
-        return CBTRUE;
-    }
-    case WAIT_TIMEOUT:
-    {
-        return CBTRUE;
-    }
-    default:
+    GetExitCodeProcess(data->ProcessInformation.hProcess, &exitCode);
+    if (exitCode != STILL_ACTIVE)
     {
         return CBFALSE;
     }
-    }
+
+
+    return CBTRUE;
 #else
     CUBEI_UnixCommandData* data = (CUBEI_UnixCommandData*)a_commandLine->Data;
     if (data == NULL)
@@ -512,7 +503,7 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
         const CHAR* s = chBuf;
         const CHAR* e = s;
 
-        while (*s != '\0')
+        while (*s != 0 && s - chBuf < dwRead - 1)
         {
             if (*s == '\n')
             {
