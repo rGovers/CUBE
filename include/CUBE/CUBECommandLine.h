@@ -491,6 +491,8 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
     CloseHandle(data->WritePipe);
 
+    CUBE_String tmpStr = { 0 };
+
     DWORD dwRead;
     CHAR chBuf[4096];
     while (ReadFile(data->ReadPipe, chBuf, sizeof(chBuf), &dwRead, NULL))
@@ -503,17 +505,26 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
         const CHAR* s = chBuf;
         const CHAR* e = s;
 
-        while (*s != 0 && s - chBuf < dwRead - 1)
+        while (*s != 0 && s - chBuf < dwRead)
         {
             if (*s == '\n')
             {
-                CUBE_String str = CUBE_String_CreateCL(e, s - e);
+                CUBE_String str = { 0 };
+                if (tmpStr.Length > 0)
+                {
+                    str = CUBE_String_MergeCL(&tmpStr, e, s - e);
+
+                    CUBE_String_Destroy(&tmpStr);
+                }
+                else
+                {
+                    str = CUBE_String_CreateCL(e, s - e);
+                }
 
                 e = s + 1;
 
                 *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
-                (*a_lines)[*a_lineCount].Length = str.Length;
-                (*a_lines)[*a_lineCount].Data = str.Data;
+                (*a_lines)[*a_lineCount] = str;
                 *a_lineCount += 1;
             }
 
@@ -522,13 +533,22 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
         if (e != s)
         {
-            CUBE_String str = CUBE_String_CreateCL(e, s - e);
-
-            *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
-            (*a_lines)[*a_lineCount].Length = str.Length;
-            (*a_lines)[*a_lineCount].Data = str.Data;
-            *a_lineCount += 1;
+            if (tmpStr.Length > 0)
+            {   
+                CUBE_String_AppendCL(&tmpStr, e, s - e);
+            }
+            else
+            {
+                tmpStr = CUBE_String_CreateCL(e, s - e);
+            }
         }
+    }
+
+    if (tmpStr.Length > 0)
+    {
+        *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+        (*a_lines)[*a_lineCount] = tmpStr;
+        *a_lineCount += 1;
     }
     
     CloseHandle(data->ReadPipe);
@@ -546,22 +566,39 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
     const int ret = data->Status;
 
-    char buffer[4096];
-    while (read(data->Pipe, buffer, sizeof(buffer) - 1) > 0)
+    CUBE_String tmpStr = { 0 };
+
+    char buffer[1024];
+    while (1)
     {
+        const int readSize = read(data->Pipe, buffer, sizeof(buffer) - 1);
+        if (readSize <= 0)
+        {
+            break;
+        }
+
         const char* s = buffer;
         const char* e = s;
-        while (*s != 0 && s - buffer < sizeof(buffer) - 1)
+        while (*s != 0 && s - buffer < readSize)
         {
             if (*s == '\n')
             {
-                CUBE_String str = CUBE_String_CreateCL(e, s - e);
+                CUBE_String str = { 0 };
+                if (tmpStr.Length > 0)
+                {
+                    str = CUBE_String_MergeCL(&tmpStr, e, s - e);
+
+                    CUBE_String_Destroy(&tmpStr);
+                }
+                else
+                {
+                    str = CUBE_String_CreateCL(e, s - e);
+                }
 
                 e = s + 1;
 
                 *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
-                (*a_lines)[*a_lineCount].Length = str.Length;
-                (*a_lines)[*a_lineCount].Data = str.Data;
+                (*a_lines)[*a_lineCount] = str;
                 *a_lineCount += 1;
             }
 
@@ -570,13 +607,22 @@ int CUBE_CommandLine_EndExecution(CUBE_CommandLine* a_commandLine, CUBE_String**
 
         if (e != s)
         {
-            CUBE_String str = CUBE_String_CreateCL(e, s - e);
-
-            *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
-            (*a_lines)[*a_lineCount].Length = str.Length;
-            (*a_lines)[*a_lineCount].Data = str.Data;
-            *a_lineCount += 1;
+            if (tmpStr.Length > 0)
+            {   
+                CUBE_String_AppendCL(&tmpStr, e, s - e);
+            }
+            else
+            {
+                tmpStr = CUBE_String_CreateCL(e, s - e);
+            }
         }
+    }
+
+    if (tmpStr.Length > 0)
+    {
+        *a_lines = (CUBE_String*)realloc(*a_lines, sizeof(CUBE_String) * (*a_lineCount + 1));
+        (*a_lines)[*a_lineCount] = tmpStr;
+        *a_lineCount += 1;
     }
 
     close(data->Pipe);

@@ -183,17 +183,14 @@ CUBE_String CUBE_String_MergeCL(const CUBE_String* a_lhs, const char* a_rhs, CBU
 
     string.Data = (char*)malloc(sizeof(char) * string.Length + 1);
     CBUINT32 index = 0;
-    printf("c\n");
     for (CBUINT32 i = 0; i < a_lhs->Length; ++i)
     {
         string.Data[index++] = a_lhs->Data[i];
     }
-    printf("d\n");
     for (CBUINT32 i = 0; i < a_length; ++i)
     {
         string.Data[index++] = a_rhs[i];
     }
-    printf("e\n");
     string.Data[string.Length] = '\0';
 
     return string;
