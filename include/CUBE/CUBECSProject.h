@@ -29,6 +29,8 @@ typedef struct
     CBUINT32 IncludePathCount;
     CUBE_Path* Sources;
     CBUINT32 SourceCount;
+    CUBE_String* Defines;
+    CBUINT32 DefineCount;
     CUBE_String* References;
     CBUINT32 ReferenceCount;
     CBBOOL Optimise;
@@ -39,14 +41,17 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project);
 void CUBE_CSProject_AppendSource(CUBE_CSProject* a_project, const char* a_source);
 void CUBEI_CSProject_AppendSources(CUBE_CSProject* a_project, const char* a_sources[]);
 #define CUBE_CSProject_AppendSources(project, ...) CUBEI_CSProject_AppendSources(project, (const char*[]){ __VA_ARGS__, CBNULL })
+void CUBE_CSProject_AppendDefine(CUBE_CSProject* a_project, const char* a_define);
+void CUBEI_CSProject_AppendDefines(CUBE_CSProject* a_project, const char* a_defines[]);
+#define CUBE_CSProject_AppendDefines(project, ...) CUBEI_CSProject_AppendDefines(project, (const char*[]){ __VA_ARGS__, CBNULL })
 void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath);
 void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_reference);
 
 CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, e_CUBE_CProjectCompiler a_preProcessor, const char* a_preprocessorPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 CBBOOL CUBE_CSProject_Compile(const CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
-#ifdef CUBE_IMPLEMENTATION
-// #if 1
+// #ifdef CUBE_IMPLEMENTATION
+#if 1
 
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
 {
@@ -75,6 +80,16 @@ void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
 
     a_project->IncludePathCount = 0;
     a_project->IncludePaths = CBNULL;
+
+    for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
+    {
+        CUBE_String_Destroy(&a_project->Defines[i]);
+    }
+
+    free(a_project->Defines);
+
+    a_project->DefineCount = 0;
+    a_project->Defines = CBNULL;
 
     for (CBUINT32 i = 0; i < a_project->ReferenceCount; ++i)
     {
@@ -117,6 +132,34 @@ void CUBEI_CSProject_AppendSources(CUBE_CSProject* a_project, const char* a_sour
     }
 
     a_project->SourceCount = finalCount;
+}
+void CUBE_CSProject_AppendDefine(CUBE_CSProject* a_project, const char* a_define)
+{
+    const CBUINT32 defineCount = a_project->DefineCount++;
+
+    a_project->Defines = (CUBE_String*)realloc(a_project->Defines, sizeof(CUBE_String) * a_project->DefineCount);
+    a_project->Defines[defineCount] = CUBE_String_CreateC(a_define);
+}
+void CUBEI_CSProject_AppendDefines(CUBE_CSProject* a_project, const char** a_defines)
+{
+    const char** end = a_defines;
+    while (*end != CBNULL)
+    {
+        ++end;
+    }
+
+    const CBUINT32 projectDefines = a_project->DefineCount;
+    const CBUINT32 defineCount = (CBUINT32)(end - a_defines);
+    const CBUINT32 finalCount = projectDefines + defineCount;
+
+    a_project->Defines = (CUBE_String*)realloc(a_project->Defines, sizeof(CUBE_String) * finalCount);
+
+    for (CBUINT32 i = 0; i < defineCount; ++i)
+    {
+        a_project->Defines[projectDefines + i] = CUBE_String_CreateC(a_defines[i]);
+    }
+
+    a_project->DefineCount = finalCount;
 }
 void CUBE_CSProject_AppendIncludePath(CUBE_CSProject* a_project, const char* a_includePath)
 {
@@ -223,6 +266,16 @@ CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const c
             CUBE_String_Destroy(&includePath);
         }
 
+        for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
+        {
+            CUBE_String defineStr = CUBE_String_CreateC("-D");
+            CUBE_String_AppendS(&defineStr, &a_project->Defines[i]);
+
+            CUBE_CommandLine_AppendArgumentS(&commandLine, &defineStr);
+
+            CUBE_String_Destroy(&defineStr);
+        }
+
         CUBE_String sourceStr = CUBE_Path_ToString(&source);
 
         CUBE_CommandLine_AppendArgumentS(&commandLine, &sourceStr);
@@ -327,6 +380,16 @@ CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const c
     if (a_project->Optimise)
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "/optimize");
+    }
+
+    for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
+    {
+        CUBE_String defineStr = CUBE_String_CreateC("/define:");
+        CUBE_String_AppendS(&defineStr, &a_project->Defines[i]);
+
+        CUBE_CommandLine_AppendArgumentS(&commandLine, &defineStr);
+
+        CUBE_String_Destroy(&defineStr);
     }
 
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
@@ -443,6 +506,16 @@ CBBOOL CUBE_CSProject_Compile(const CUBE_CSProject* a_project, const char* a_wor
     if (a_project->Optimise)
     {
         CUBE_CommandLine_AppendArgumentC(&commandLine, "/optimize");
+    }
+
+    for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
+    {
+        CUBE_String defineStr = CUBE_String_CreateC("/define:");
+        CUBE_String_AppendS(&defineStr, &a_project->Defines[i]);
+
+        CUBE_CommandLine_AppendArgumentS(&commandLine, &defineStr);
+
+        CUBE_String_Destroy(&defineStr);
     }
 
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
