@@ -50,8 +50,8 @@ void CUBE_CSProject_AppendReference(CUBE_CSProject* a_project, const char* a_ref
 CBBOOL CUBE_CSProject_PreProcessCompile(const CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, e_CUBE_CProjectCompiler a_preProcessor, const char* a_preprocessorPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 CBBOOL CUBE_CSProject_Compile(const CUBE_CSProject* a_project, const char* a_workingPath, const char* a_cscPath, CUBE_String** a_lines, CBUINT32* a_lineCount);
 
-// #ifdef CUBE_IMPLEMENTATION
-#if 1
+#ifdef CUBE_IMPLEMENTATION
+// #if 1
 
 void CUBE_CSProject_Destroy(CUBE_CSProject* a_project)
 {
