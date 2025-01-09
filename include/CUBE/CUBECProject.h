@@ -912,15 +912,27 @@ CBBOOL CUBE_CProject_LinkProject(const CUBE_CProject* a_project, e_CUBE_CProject
         CUBE_String_Destroy(&objPathStr);
     }
 
-    for (CBUINT32 i = 0; i < a_project->LibraryCount; ++i)
+    if (a_project->LibraryCount > 0)
     {
-        CUBE_String libraryStr = CUBE_Path_ToString(&a_project->Libraries[i]);
+        // Not all compilers support groups
+        // Got sick of rearranging dependencies
+        // Should also resolve circular depedencies
+        // Naive but ehh it works
+        for (CBUINT32 i = 0; i < 2; ++i)
+        {
+            for (CBUINT32 j = 0; j < a_project->LibraryCount - i; ++j)
+            {
+                CUBE_String libraryStr = CUBE_Path_ToString(&a_project->Libraries[j]);
 
-        CUBE_CommandLine_AppendArgumentC(&commandLine, libraryStr.Data);
+                CUBE_CommandLine_AppendArgumentC(&commandLine, libraryStr.Data);
 
-        CUBE_String_Destroy(&libraryStr);
+                CUBE_String_Destroy(&libraryStr);
+            }
+        }
     }
 
+    // Should be pretty safe to include normally as they are system libraries and are often pretty self contained
+    // Not always but has not been an issue so far
     for (CBUINT32 i = 0; i < a_project->ReferenceCount; ++i)
     {
         CUBE_String reference = CUBE_String_CreateC("-l");
