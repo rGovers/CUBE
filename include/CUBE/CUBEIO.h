@@ -289,10 +289,11 @@ CUBE_Stat CUBE_IO_StatP(const CUBE_Path* a_path)
 #ifdef WIN32
 CBTIME CUBEI_IO_WinFileToUnixTime(FILETIME a_time)
 {
-    const static CBUINT64 WinTick = 10000000
-    const static CBUINT64 UnixEpoch = 11644473600;
+    ULARGE_INTEGER tVal;
+    tVal.LowPart = a_time.dwLowDateTime;
+    tVal.HighPart = a_time.dwHighDateTime;
 
-    return (CBTIME)(a_time / WinTick - UnixEpoch);
+    return (CBTIME)(tVal.QuadPart / 10000000ULL - 11644473600ULL);
 }
 #endif
 
@@ -310,7 +311,7 @@ CUBE_Stat CUBE_IO_StatC(const char* a_path)
     // WIN32 API so copy on pass because it is a piece of shit that does not respect const
     // *cough* CreateProcess *cough*
     CBUINT64 size = (CBUINT64)(slider - a_path);
-    char* str = malloc(size + 1);
+    char* str = (char*)malloc(size + 1);
     for (CBUINT64 i = 0; i < size; ++i)
     {
         str[i] = a_path[i];
@@ -331,7 +332,7 @@ CUBE_Stat CUBE_IO_StatC(const char* a_path)
     FILETIME lastWriteTime;
     const BOOL success = GetFileTime(handle, &creationTime, &lastAccessTime, &lastWriteTime);
 
-    CloseFile(handle);
+    CloseHandle(handle);
 
     if (success)
     {
