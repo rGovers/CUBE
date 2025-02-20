@@ -11,6 +11,13 @@
 extern "C" {
 #endif
 
+typedef struct 
+{
+    CBTIME CreationTime;
+    CBTIME AccessTime;
+    CBTIME WriteTime;
+} CUBE_Stat;
+
 void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path);
 void CUBE_IO_CreateDirectoryNRP(const CUBE_Path* a_path);
 void CUBE_IO_CreateDirectoryC(const char* a_path);
@@ -27,7 +34,10 @@ void CUBE_IO_CopyDirectoryC(const char* a_source, const char* a_destination, CBB
 CBBOOL CUBE_IO_WriteFileP(const CUBE_Path* a_path, const char* a_data, CBUINT32 a_dataSize);
 CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dataSize);
 
-#ifdef CUBE_IMPLEMENTATION
+CUBE_Stat CUBE_IO_StatP(const CUBE_Path* a_path);
+CUBE_Stat CUBE_IO_StatC(const char* a_path);
+
+ #ifdef CUBE_IMPLEMENTATION
 // #if 1
 #if WIN32
 #define WIN32_LEAN_AND_MEAN
@@ -38,6 +48,10 @@ CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dat
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#endif
+
+#if WIN32
+CBTIME CUBEI_IO_WinFileToUnixTime(FILETIME a_time);
 #endif
 
 void CUBE_IO_CreateDirectoryP(const CUBE_Path* a_path)
@@ -261,6 +275,88 @@ CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dat
     return CBTRUE;
 }
 
+CUBE_Stat CUBE_IO_StatP(const CUBE_Path* a_path)
+{
+    CUBE_String path = CUBE_Path_ToString(a_path);
+
+    CUBE_Stat stat = CUBE_IO_StatC(path.Data);
+
+    CUBE_String_Destroy(&path);
+
+    return stat;
+}
+
+#ifdef WIN32
+CBTIME CUBEI_IO_WinFileToUnixTime(FILETIME a_time)
+{
+    const static CBUINT64 WinTick = 10000000
+    const static CBUINT64 UnixEpoch = 11644473600;
+
+    return (CBTIME)(a_time / WinTick - UnixEpoch);
+}
+#endif
+
+CUBE_Stat CUBE_IO_StatC(const char* a_path)
+{
+    CUBE_Stat s = { 0 };
+
+#if WIN32
+    const char* slider = a_path;
+    while (*slider != 0)
+    {
+        ++slider;
+    }
+
+    // WIN32 API so copy on pass because it is a piece of shit that does not respect const
+    // *cough* CreateProcess *cough*
+    CBUINT64 size = (CBUINT64)(slider - a_path);
+    char* str = malloc(size + 1);
+    for (CBUINT64 i = 0; i < size; ++i)
+    {
+        str[i] = a_path[i];
+    }
+    str[size] = 0;
+
+    HANDLE handle = CreateFileA(str, GENERIC_READ, 0, NULL, OPEN_EXISTING, 0, NULL);
+
+    free(str);
+
+    if (handle == INVALID_HANDLE_VALUE)
+    {
+        return s;
+    }
+
+    FILETIME creationTime;
+    FILETIME lastAccessTime;
+    FILETIME lastWriteTime;
+    const BOOL success = GetFileTime(handle, &creationTime, &lastAccessTime, &lastWriteTime);
+
+    CloseFile(handle);
+
+    if (success)
+    {
+        // Want everything in Unix time for consistency
+        s.CreationTime = CUBEI_IO_WinFileToUnixTime(creationTime);
+        s.AccessTime = CUBEI_IO_WinFileToUnixTime(lastAccessTime);
+        s.WriteTime = CUBEI_IO_WinFileToUnixTime(lastWriteTime);
+    }
+#else
+    struct stat us;
+    if (stat(a_path, &us) < 0)
+    {
+        perror("stat");
+
+        return s;
+    }
+
+    s.CreationTime = (CBTIME)us.st_ctime;
+    s.AccessTime = (CBTIME)us.st_atime;
+    s.WriteTime = (CBTIME)us.st_mtime;
+#endif
+
+    return s;
+}
+
 #endif
 
 #ifdef __cplusplus
@@ -271,7 +367,7 @@ CBBOOL CUBE_IO_WriteFileC(const char* a_path, const char* a_data, CBUINT32 a_dat
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2025 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

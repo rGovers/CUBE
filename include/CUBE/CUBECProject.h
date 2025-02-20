@@ -77,7 +77,8 @@ void CUBEI_CProject_AppendLibraries(CUBE_CProject* a_project, const char* a_libr
 #define CUBE_CProject_AppendLibraries(project, ...) CUBEI_CProject_AppendLibraries(project, (const char*[]){ __VA_ARGS__, CBNULL })
 void CUBE_CProject_AppendCFlag(CUBE_CProject* a_project, const char* a_flag);
 
-CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_line, CBUINT32* a_lineCount);
+CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_line, CBUINT32* a_lineCount, CBBOOL a_forceBuild);
+CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CBUINT32 a_jobs, CUBE_String** a_lines, CBUINT32* a_lineCount, CBBOOL a_forceBuild);
 
 CUBE_String CUBE_CProject_GenerateCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath);
 CUBE_String CUBE_CProject_GenerateMultiCompileCommands(const CUBE_CProject* a_projects, CBUINT32 a_projectCount, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath);
@@ -85,8 +86,38 @@ CUBE_String CUBE_CProject_GenerateMultiCompileCommands(const CUBE_CProject* a_pr
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
 
+#ifdef CUBE_PRINT_COLOUR
+#define CUBEI_CPROJECT_CONSOLECOLOUR_GREEN "\033[0;32m"
+#define CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "\033[0;36m"
+#define CUBEI_CPROJECT_CONSOLECOLOUR_RESET "\033[0m"
+#else
+#define CUBEI_CPROJECT_CONSOLECOLOUR_GREEN
+#define CUBEI_CPROJECT_CONSOLECOLOUR_CYAN
+#define CUBEI_CPROJECT_CONSOLECOLOUR_RESET
+#endif
+
+typedef struct
+{
+    CUBE_Path Source;
+    CUBE_String SourceString;
+    CBTIME WriteTime;
+} CUBEI_SourceStatus;
+
+typedef struct
+{
+    // Upon further thought is already unreliable recompiling only on changed files cannot make any assurances about external depedencies so just always re-link
+    CUBEI_SourceStatus* Sources;
+    CBUINT32 SourceCount;
+} CUBEI_CProjectStatus;
+
+CUBEI_CProjectStatus CUBEI_CProject_GetProjectStatus(const CUBE_CProject* a_project, const char* a_workingPath);
+void CUBEI_CProject_WriteProjectStatus(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath);
+void CUBEI_CProject_AppendStatusSource(CUBEI_CProjectStatus* a_project, const CUBE_Path* a_source, const CUBE_String* a_sourceString, CBTIME a_writeTime);
+void CUBEI_CProject_DestroyProjectStatus(CUBEI_CProjectStatus* a_project);
+
 CUBE_CommandLine CUBEI_CProject_CreateObjectCommandLine(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath);
 
+CUBE_String CUBEI_CProject_CreateSourceCommandString(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath, CBUINT32 a_source);
 CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath);
 
 static const char CUBE_GCC_String[] = "gcc";
@@ -510,59 +541,59 @@ CUBE_CommandLine CUBEI_CProject_CreateObjectFileCommandLine(const CUBE_CProject*
 {
     CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath);
 
-        CUBE_String sourceStr = CUBE_Path_ToString(a_source);
+    CUBE_String sourceStr = CUBE_Path_ToString(a_source);
 
-        CUBE_Path parentPath = CUBE_Path_ParentPath(a_source);
-        CUBE_String parentPathStr = CUBE_Path_ToString(&parentPath);
+    CUBE_Path parentPath = CUBE_Path_ParentPath(a_source);
+    CUBE_String parentPathStr = CUBE_Path_ToString(&parentPath);
 
-        CUBE_String fileName = CUBE_Path_Filename(a_source);
-        CUBE_String extension = CUBE_Path_Extension(a_source);
+    CUBE_String fileName = CUBE_Path_Filename(a_source);
+    CUBE_String extension = CUBE_Path_Extension(a_source);
 
-        CUBE_String filenameObj = CUBE_String_MergeC(&fileName, ".o");
+    CUBE_String filenameObj = CUBE_String_MergeC(&fileName, ".o");
 
-        CUBE_Path outPath = CUBE_Path_CombineS(a_objOut, &parentPathStr);
+    CUBE_Path outPath = CUBE_Path_CombineS(a_objOut, &parentPathStr);
 
-        if (a_workingPath != CBNULL)
-        {
-            CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
-            CUBE_Path workingOutPath = CUBE_Path_CombineP(&workingPath, &outPath);
+    if (a_workingPath != CBNULL)
+    {
+        CUBE_Path workingPath = CUBE_Path_CreateC(a_workingPath);
+        CUBE_Path workingOutPath = CUBE_Path_CombineP(&workingPath, &outPath);
 
-            CUBE_IO_CreateDirectoryNRP(&workingOutPath);
+        CUBE_IO_CreateDirectoryNRP(&workingOutPath);
 
-            CUBE_Path_Destroy(&workingPath);
-            CUBE_Path_Destroy(&workingOutPath);
-        }
-        else
-        {
-            CUBE_IO_CreateDirectoryP(&outPath);
-        }
+        CUBE_Path_Destroy(&workingPath);
+        CUBE_Path_Destroy(&workingOutPath);
+    }
+    else
+    {
+        CUBE_IO_CreateDirectoryP(&outPath);
+    }
 
-        CUBE_Path objectPath = CUBE_Path_CombineS(&outPath, &filenameObj);
-        CUBE_String objectPathStr = CUBE_Path_ToNRString(&objectPath);
+    CUBE_Path objectPath = CUBE_Path_CombineS(&outPath, &filenameObj);
+    CUBE_String objectPathStr = CUBE_Path_ToNRString(&objectPath);
 
-        CUBE_String outArg = CUBE_String_CreateC("-o ");
-        CUBE_String_AppendS(&outArg, &objectPathStr);
+    CUBE_String outArg = CUBE_String_CreateC("-o ");
+    CUBE_String_AppendS(&outArg, &objectPathStr);
 
-        CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
-        CUBE_CommandLine_AppendArgumentC(&commandLine, sourceStr.Data);
+    CUBE_CommandLine_AppendArgumentC(&commandLine, outArg.Data);
+    CUBE_CommandLine_AppendArgumentC(&commandLine, sourceStr.Data);
 
-        CUBE_String_Destroy(&outArg);
-        CUBE_String_Destroy(&sourceStr);
+    CUBE_String_Destroy(&outArg);
+    CUBE_String_Destroy(&sourceStr);
 
-        CUBE_Path_Destroy(&parentPath);
-        CUBE_String_Destroy(&parentPathStr);
+    CUBE_Path_Destroy(&parentPath);
+    CUBE_String_Destroy(&parentPathStr);
 
-        CUBE_String_Destroy(&fileName);
-        CUBE_String_Destroy(&extension);
+    CUBE_String_Destroy(&fileName);
+    CUBE_String_Destroy(&extension);
 
-        CUBE_String_Destroy(&filenameObj);
+    CUBE_String_Destroy(&filenameObj);
 
-        CUBE_Path_Destroy(&outPath);
+    CUBE_Path_Destroy(&outPath);
 
-        CUBE_Path_Destroy(&objectPath);
-        CUBE_String_Destroy(&objectPathStr);
+    CUBE_Path_Destroy(&objectPath);
+    CUBE_String_Destroy(&objectPathStr);
 
-        return commandLine;
+    return commandLine;
 }
 
 CBBOOL CUBE_CProject_LinkProject(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, const CUBE_Path* a_objOut, CUBE_String** a_lines, CBUINT32* a_lineCount)
@@ -955,9 +986,262 @@ CBBOOL CUBE_CProject_LinkProject(const CUBE_CProject* a_project, e_CUBE_CProject
     return ret == 0;
 }
 
-CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CBUINT32 a_jobs, CUBE_String** a_lines, CBUINT32* a_lineCount)
+CUBEI_CProjectStatus CUBEI_CProject_GetProjectStatus(const CUBE_CProject* a_project, const char* a_workingPath)
+{
+    CUBEI_CProjectStatus status = { 0 };
+
+    CUBE_Path workingPath = { 0 };
+    if (a_workingPath != CBNULL)
+    {
+        workingPath = CUBE_Path_CreateC(a_workingPath);
+    }
+
+    CUBE_Path outPath = CUBE_Path_CombineP(&workingPath, &a_project->OutputPath);
+
+    CUBE_String fileName = CUBE_String_CreateSS(&a_project->Name);
+    CUBE_String_AppendC(&fileName, ".cube");
+    
+    CUBE_Path filePath = CUBE_Path_CombineS(&outPath, &fileName);
+    CUBE_String pathStr = CUBE_Path_ToString(&filePath);
+
+    FILE* file = fopen(pathStr.Data, "r");
+    if (file != NULL)
+    {
+        fseek(file, 0, SEEK_END);
+        const CBUINT64 size = (CBUINT64)ftell(file);
+        rewind(file);
+
+        char* fileStr = (char*)malloc(size + 1);
+        fread(fileStr, size, 1, file);
+        fileStr[size] = 0;
+
+        fclose(file);
+
+        typedef enum 
+        {
+            ReadMode_Null,
+            ReadMode_Path,
+            ReadMode_Write,
+            ReadMode_CmdStr
+        } e_ReadMode;
+
+        e_ReadMode readMode = ReadMode_Null;
+
+        CUBE_String cmdString = { 0 };
+        CUBE_Path srcPath = { 0 };
+        CBTIME writeTime = 0;
+
+        const char* strStart = fileStr;
+        const char* slider = fileStr;
+        while (*slider != 0)
+        {
+            const char chr = *slider;
+
+            switch (chr)
+            {
+            case '[':
+            {
+                readMode = ReadMode_Null;
+
+                CUBE_String_Destroy(&cmdString);
+                CUBE_Path_Destroy(&srcPath);
+                writeTime = 0;
+
+                break;
+            }
+            case ' ':
+            {
+                if (readMode == ReadMode_Null)
+                {
+                    strStart = slider + 1;
+                }
+
+                break;
+            }
+            case ':':
+            {
+                const CBUINT32 len = (CBUINT32)(slider - strStart);
+
+                if (strncmp(strStart, "PATH", len) == 0)
+                {
+                    readMode = ReadMode_Path;
+                }
+                else if (strncmp(strStart, "WRITE", len) == 0)
+                {
+                    readMode = ReadMode_Write;
+                }
+                else if (strncmp(strStart, "CMDSTR", len) == 0)
+                {
+                    readMode = ReadMode_CmdStr;
+                }
+
+                strStart = slider + 1;
+
+                break;
+            }
+            case '\n':
+            {
+                switch (readMode)
+                {
+                case ReadMode_Path:
+                {
+                    CUBE_Path_Destroy(&srcPath);
+
+                    srcPath = CUBE_Path_CreateCL(strStart, (CBUINT32)(slider - strStart));
+
+                    break;
+                }
+                case ReadMode_Write:
+                {
+                    writeTime = (CBTIME)strtoul(strStart, NULL, 10);
+
+                    break;
+                }
+                case ReadMode_CmdStr:
+                {
+                    CUBE_String_Destroy(&cmdString);
+
+                    cmdString = CUBE_String_CreateCL(strStart, (CBUINT32)(slider - strStart));
+
+                    break;
+                }
+                default:
+                {
+                    break;
+                }
+                }
+
+                strStart = slider + 1;
+                readMode = ReadMode_Null;
+
+                break;
+            }
+            case ']':
+            {
+                CUBEI_CProject_AppendStatusSource(&status, &srcPath, &cmdString, writeTime);
+
+                break;
+            }
+            }
+
+            ++slider;
+        }
+
+        free(fileStr);
+    }
+
+    CUBE_Path_Destroy(&workingPath);
+    CUBE_Path_Destroy(&outPath);
+    CUBE_String_Destroy(&fileName);
+    CUBE_Path_Destroy(&filePath);
+    CUBE_String_Destroy(&pathStr);
+
+    return status;
+}
+void CUBEI_CProject_WriteProjectStatus(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath)
+{
+    CUBE_Path workingPath = { 0 };
+
+    if (a_workingPath != CBNULL)
+    {
+        workingPath = CUBE_Path_CreateC(a_workingPath);
+    }
+
+    CUBE_Path outPath = CUBE_Path_CombineP(&workingPath, &a_project->OutputPath);
+
+    CUBE_String fileName = CUBE_String_CreateC(a_project->Name.Data);
+    CUBE_String_AppendC(&fileName, ".cube");
+
+    CUBE_Path filePath = CUBE_Path_CombineS(&outPath, &fileName);
+    CUBE_String filePathStr = CUBE_Path_ToString(&filePath);
+
+    FILE* file = fopen(filePathStr.Data, "w+");
+
+    CUBE_String_Destroy(&fileName);
+    CUBE_String_Destroy(&filePathStr);
+    CUBE_Path_Destroy(&filePath);
+
+    if (file == NULL)
+    {
+        CUBE_Path_Destroy(&workingPath);
+        CUBE_Path_Destroy(&outPath);
+
+        return;
+    }
+
+    for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
+    {
+        fprintf(file, "[\n");
+
+        CUBE_String sourceStr = CUBE_Path_ToString(&(a_project->Sources[i]));
+
+        fprintf(file, "   PATH:%s\n", sourceStr.Data);
+        
+        CUBE_Path sourcePath = CUBE_Path_CombineP(&workingPath, &(a_project->Sources[i]));
+
+        CUBE_Stat stat = CUBE_IO_StatP(&sourcePath);
+        fprintf(file, "   WRITE:%u\n", stat.WriteTime);
+
+        CUBE_String cmdStr = CUBEI_CProject_CreateSourceCommandString(a_project, a_compiler, &workingPath, i);
+
+        fprintf(file, "   CMDSTR:%s\n", cmdStr.Data);
+        
+        CUBE_Path_Destroy(&sourcePath);
+        
+        CUBE_String_Destroy(&sourceStr);
+
+        CUBE_String_Destroy(&cmdStr);
+
+        fprintf(file, "]\n");
+    }
+
+    fclose(file);
+
+    CUBE_Path_Destroy(&workingPath);
+    CUBE_Path_Destroy(&outPath);
+}
+void CUBEI_CProject_AppendStatusSource(CUBEI_CProjectStatus* a_project, const CUBE_Path* a_source, const CUBE_String* a_sourceString, CBTIME a_writeTime)
+{
+    CBUINT32 newSize = a_project->SourceCount + 1;
+
+    a_project->Sources = (CUBEI_SourceStatus*)realloc(a_project->Sources, sizeof(CUBEI_SourceStatus) * newSize);
+
+    a_project->Sources[a_project->SourceCount].Source = CUBE_Path_Copy(a_source);
+    a_project->Sources[a_project->SourceCount].SourceString = CUBE_String_Copy(a_sourceString);
+    a_project->Sources[a_project->SourceCount].WriteTime = a_writeTime;
+
+    a_project->SourceCount = newSize;
+}
+void CUBEI_CProject_DestroyProjectStatus(CUBEI_CProjectStatus* a_project)
+{
+    if (a_project->Sources != CBNULL)
+    {
+        for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
+        {
+            CUBE_Path_Destroy(&a_project->Sources[i].Source);
+            CUBE_String_Destroy(&a_project->Sources[i].SourceString);
+        }
+
+        free(a_project->Sources);
+        a_project->Sources = CBNULL;
+    }
+
+    a_project->SourceCount = 0;
+}
+
+CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CBUINT32 a_jobs, CUBE_String** a_lines, CBUINT32* a_lineCount, CBBOOL a_forceBuild)
 {
     CUBE_Path objectOutpath = CUBE_Path_CombineC(&a_project->OutputPath, "obj");
+
+    CUBEI_CProjectStatus oldStatus = { 0 };
+
+#ifdef CUBE_PRETTY_PRINT        
+    printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "Reading CUBE Data " CUBEI_CPROJECT_CONSOLECOLOUR_RESET "\n", a_project->Name.Data);
+#endif
+    if (!a_forceBuild)
+    {
+        oldStatus = CUBEI_CProject_GetProjectStatus(a_project, a_workingPath);
+    }
 
     typedef struct
     {
@@ -974,9 +1258,56 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
     ObjectData* commandObjects = (ObjectData*)malloc(sizeof(ObjectData) * a_jobs);
     memset(commandObjects, 0, sizeof(ObjectData) * a_jobs);
 
+    CUBE_Path workingPath = { 0 };
+    if (a_workingPath != CBNULL)
+    {
+        workingPath = CUBE_Path_CreateC(a_workingPath);
+    }
+
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
     {
-        CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
+#ifdef CUBE_PRETTY_PRINT
+        const CBUINT32 printPercentage = (CBUINT32)(((double)i / a_project->SourceCount) * 100);
+        
+        CUBE_String printPath = CUBE_Path_ToString(&(a_project->Sources[i]));
+        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ][ %d% ] " CUBEI_CPROJECT_CONSOLECOLOUR_GREEN "Compiling \"%s\" " CUBEI_CPROJECT_CONSOLECOLOUR_RESET " \n", a_project->Name.Data, printPercentage, printPath.Data);
+        
+        CUBE_String_Destroy(&printPath);
+#endif
+        CUBE_CommandLine commandLine = { 0 };
+
+        for (CBUINT32 j = 0; j < oldStatus.SourceCount; ++j)
+        {
+            if (CUBE_Path_Equals(&(oldStatus.Sources[j].Source), &(a_project->Sources[i])))
+            {
+                CUBE_Path srcPath = CUBE_Path_CombineP(&workingPath, &(a_project->Sources[i]));
+
+                CUBE_Stat stat = CUBE_IO_StatP(&srcPath);
+
+                CUBE_Path_Destroy(&srcPath);
+
+                if (stat.WriteTime != oldStatus.Sources[j].WriteTime)
+                {
+                    break;
+                }
+
+                CUBE_String str = CUBEI_CProject_CreateSourceCommandString(a_project, a_compiler, &workingPath, i);
+
+                if (!CUBE_String_Equals(&str, &oldStatus.Sources[j].SourceString))
+                {
+                    CUBE_String_Destroy(&str);
+
+                    break;
+                }
+
+                CUBE_String_Destroy(&str);
+
+                goto NextMultiSource;
+            }
+        }
+
+        commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
 
         while (1)
         {
@@ -1034,7 +1365,11 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
                 break;
             }
         }
+
+NextMultiSource:;
     }
+
+    CUBE_Path_Destroy(&workingPath);
 
     CBBOOL ret = CBTRUE;
 
@@ -1064,21 +1399,96 @@ CBBOOL CUBE_CProject_MultiCompile(const CUBE_CProject* a_project, e_CUBE_CProjec
         return CBFALSE;
     }
 
+#ifdef CUBE_PRETTY_PRINT
+    printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ][ 100% ] Linking Project\n", a_project->Name.Data);
+#endif
     ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
 
     CUBE_Path_Destroy(&objectOutpath);
+    CUBEI_CProject_DestroyProjectStatus(&oldStatus);
+
+    if (ret)
+    {
+#ifdef CUBE_PRETTY_PRINT        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "Writing CUBE Data " CUBEI_CPROJECT_CONSOLECOLOUR_RESET "\n", a_project->Name.Data);
+#endif
+
+        CUBEI_CProject_WriteProjectStatus(a_project, a_compiler, a_workingPath);
+
+#ifdef CUBE_PRETTY_PRINT        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] Done\n", a_project->Name.Data);
+#endif
+    }
 
     return ret;
 }
-CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_lines, CBUINT32* a_lineCount)
+CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const char* a_workingPath, const char* a_compilerPath, CUBE_String** a_lines, CBUINT32* a_lineCount, CBBOOL a_forceBuild)
 {
     CUBE_Path objectOutpath = CUBE_Path_CombineC(&a_project->OutputPath, "obj");
 
+    CUBEI_CProjectStatus oldStatus = { 0 };
+
+#ifdef CUBE_PRETTY_PRINT        
+    printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "Reading CUBE Data " CUBEI_CPROJECT_CONSOLECOLOUR_RESET "\n", a_project->Name.Data);
+#endif
+    if (!a_forceBuild)
+    {
+        oldStatus = CUBEI_CProject_GetProjectStatus(a_project, a_workingPath);
+    }
+
+    CUBE_Path workingPath = { 0 };
+    if (a_workingPath != CBNULL)
+    {
+        workingPath = CUBE_Path_CreateC(a_workingPath);
+    }
+
     for (CBUINT32 i = 0; i < a_project->SourceCount; ++i)
     {
-        CUBE_CommandLine commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
+#ifdef CUBE_PRETTY_PRINT
+        const CBUINT32 printPercentage = (CBUINT32)(((double)i / a_project->SourceCount) * 100);
+        
+        CUBE_String printPath = CUBE_Path_ToString(&(a_project->Sources[i]));
+        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ][ %d% ] " CUBEI_CPROJECT_CONSOLECOLOUR_GREEN "Compiling \"%s\" " CUBEI_CPROJECT_CONSOLECOLOUR_RESET " \n", a_project->Name.Data, printPercentage, printPath.Data);
+        
+        CUBE_String_Destroy(&printPath);
+#endif
+        CUBE_CommandLine commandLine = { 0 };
+        int ret;
 
-        const int ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
+        for (CBUINT32 j = 0; j < oldStatus.SourceCount; ++j)
+        {
+            if (CUBE_Path_Equals(&(oldStatus.Sources[j].Source), &(a_project->Sources[i])))
+            {
+                CUBE_Path srcPath = CUBE_Path_CombineP(&workingPath, &(a_project->Sources[i]));
+            
+                CUBE_Stat stat = CUBE_IO_StatP(&srcPath);
+            
+                CUBE_Path_Destroy(&srcPath);
+            
+                if (stat.WriteTime != oldStatus.Sources[j].WriteTime)
+                {
+                    break;
+                }
+            
+                CUBE_String str = CUBEI_CProject_CreateSourceCommandString(a_project, a_compiler, &workingPath, i);
+            
+                if (!CUBE_String_Equals(&str, &oldStatus.Sources[j].SourceString))
+                {
+                    CUBE_String_Destroy(&str);
+                
+                    break;
+                }
+            
+                CUBE_String_Destroy(&str);
+            
+                goto NextSource;
+            }
+        }
+
+
+        commandLine = CUBEI_CProject_CreateObjectFileCommandLine(a_project, a_compiler, a_workingPath, a_compilerPath, &a_project->Sources[i], &objectOutpath);
+        ret = CUBE_CommandLine_Execute(&commandLine, a_lines, a_lineCount);
 
         CUBE_CommandLine_Destroy(&commandLine);
 
@@ -1088,15 +1498,163 @@ CBBOOL CUBE_CProject_Compile(const CUBE_CProject* a_project, e_CUBE_CProjectComp
 
             return CBFALSE;
         }
+
+NextSource:;
     }
 
+    CUBE_Path_Destroy(&workingPath);
+
+#ifdef CUBE_PRETTY_PRINT
+    printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ][ 100% ] Linking Project\n", a_project->Name.Data);
+#endif
     const CBBOOL ret = CUBE_CProject_LinkProject(a_project, a_compiler, a_workingPath, a_compilerPath, &objectOutpath, a_lines, a_lineCount);
 
     CUBE_Path_Destroy(&objectOutpath);
 
+    if (ret)
+    {
+#ifdef CUBE_PRETTY_PRINT        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "Writing CUBE Data " CUBEI_CPROJECT_CONSOLECOLOUR_RESET "\n", a_project->Name.Data);
+#endif
+
+        CUBEI_CProject_WriteProjectStatus(a_project, a_compiler, a_workingPath);
+
+#ifdef CUBE_PRETTY_PRINT        
+        printf("[ " CUBEI_CPROJECT_CONSOLECOLOUR_CYAN "%s" CUBEI_CPROJECT_CONSOLECOLOUR_RESET " ] Done\n", a_project->Name.Data);
+#endif
+    }
+
     return ret;
 }
 
+CUBE_String CUBEI_CProject_CreateSourceCommandString(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath, CBUINT32 a_source)
+{
+    CUBE_String str = { 0 };
+
+    switch (a_compiler)
+    {
+    case CUBE_CProjectCompiler_GCC:
+    {
+        CUBE_String_AppendC(&str, CUBE_GCC_String);
+
+        break;
+    }
+    case CUBE_CProjectCompiler_MinGW:
+    {
+        CUBE_String_AppendC(&str, CUBE_MinGW_String);
+
+        break;
+    }
+    case CUBE_CProjectCompiler_Clang:
+    {
+        CUBE_String_AppendC(&str, CUBE_Clang_String);
+
+        break;
+    }
+    case CUBE_CProjectCompiler_Zig:
+    {
+        switch (a_project->Language) 
+        {
+        case CUBE_CProjectLanguage_C:
+        {
+            CUBE_String_AppendC(&str, CUBE_ZigCC_String);
+
+            break;
+        }
+        case CUBE_CProjectLanguage_CPP:
+        {
+            CUBE_String_AppendC(&str, CUBE_ZigCPP_String);
+
+            break;
+        }
+        }
+
+        break;
+    }
+    }
+
+    switch (a_project->Language)
+    {
+    case CUBE_CProjectLanguage_C:
+    {
+        CUBE_String_AppendC(&str, " -x c");
+
+        break;
+    }
+    case CUBE_CProjectLanguage_CPP:
+    {
+        CUBE_String_AppendC(&str, " -x c++");
+
+        break;
+    }
+    }
+
+    for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
+    {
+        CUBE_String_AppendC(&str, " -D");
+        CUBE_String_AppendS(&str, &a_project->Defines[i]);
+    }
+
+    if (a_project->Language == CUBE_CProjectLanguage_C)
+    {
+        CUBE_String_AppendC(&str, " -DCUBE_LANGUAGE_C");
+    }
+    else
+    {
+        CUBE_String_AppendC(&str, " -DCUBE_LANGUAGE_CPP");
+    }
+
+    for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
+    {
+        CUBE_String_AppendC(&str, " -I");
+        
+        CUBE_Path includePath = CUBE_Path_CombineP(a_workingPath, &a_project->IncludePaths[i]);
+        CUBE_String includePathStr = CUBE_Path_ToString(&includePath);
+
+        CUBE_String_AppendS(&str, &includePathStr);
+
+        CUBE_Path_Destroy(&includePath);
+        CUBE_String_Destroy(&includePathStr);
+    }
+
+    for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
+    {
+        CUBE_String_AppendC(&str, " ");
+        CUBE_String_AppendS(&str, &a_project->CFlags[i]);
+    }
+
+    CUBE_Path outPath = CUBE_Path_CombineP(a_workingPath, &a_project->OutputPath);
+
+    CUBE_Path sourcePath = CUBE_Path_CombineP(a_workingPath, &a_project->Sources[a_source]);
+    CUBE_String sourcePathStr = CUBE_Path_ToString(&sourcePath);
+
+    CUBE_Path parentPath = CUBE_Path_ParentPath(&a_project->Sources[a_source]);
+    CUBE_String fileName = CUBE_Path_Filename(&sourcePath);
+    CUBE_Path objOutPath = CUBE_Path_CombineP(&outPath, &parentPath);
+    CUBE_Path objPath = CUBE_Path_CombineS(&objOutPath, &fileName);
+    CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
+
+    CUBE_String_AppendC(&str, " -o ");
+    CUBE_String_AppendS(&str, &objPathStr);
+    CUBE_String_AppendC(&str, ".o");
+
+    CUBE_String_AppendC(&str, " -c ");
+
+    CUBE_String_AppendS(&str, &sourcePathStr);
+
+    CUBE_Path_Destroy(&parentPath);
+    CUBE_String_Destroy(&fileName);
+    CUBE_Path_Destroy(&objOutPath);
+    CUBE_Path_Destroy(&objPath);
+    CUBE_String_Destroy(&objPathStr);
+
+    CUBE_Path_Destroy(&sourcePath);
+    CUBE_String_Destroy(&sourcePathStr);
+
+    CUBE_Path_Destroy(&outPath);
+
+    return str;
+}
 CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_project, e_CUBE_CProjectCompiler a_compiler, const CUBE_Path* a_workingPath)
 {
     CUBE_String compileCommands = { 0 };
@@ -1114,114 +1672,15 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
         CUBE_String_AppendS(&compileCommands, &directory);
 
         CUBE_String_AppendC(&compileCommands, "    \"command\": \"");
-        switch (a_compiler)
-        {
-        case CUBE_CProjectCompiler_GCC:
-        {
-            CUBE_String_AppendC(&compileCommands, CUBE_GCC_String);
 
-            break;
-        }
-        case CUBE_CProjectCompiler_MinGW:
-        {
-            CUBE_String_AppendC(&compileCommands, CUBE_MinGW_String);
+        CUBE_String cmdStr = CUBEI_CProject_CreateSourceCommandString(a_project, a_compiler, a_workingPath, i);
 
-            break;
-        }
-        case CUBE_CProjectCompiler_Clang:
-        {
-            CUBE_String_AppendC(&compileCommands, CUBE_Clang_String);
+        CUBE_String_AppendS(&compileCommands, &cmdStr);
 
-            break;
-        }
-        case CUBE_CProjectCompiler_Zig:
-        {
-            switch (a_project->Language) 
-            {
-            case CUBE_CProjectLanguage_C:
-            {
-                CUBE_String_AppendC(&compileCommands, CUBE_ZigCC_String);
+        CUBE_String_Destroy(&cmdStr);
 
-                break;
-            }
-            case CUBE_CProjectLanguage_CPP:
-            {
-                CUBE_String_AppendC(&compileCommands, CUBE_ZigCPP_String);
-
-                break;
-            }
-            }
-
-            break;
-        }
-        }
-
-        switch (a_project->Language)
-        {
-        case CUBE_CProjectLanguage_C:
-        {
-            CUBE_String_AppendC(&compileCommands, " -x c");
-
-            break;
-        }
-        case CUBE_CProjectLanguage_CPP:
-        {
-            CUBE_String_AppendC(&compileCommands, " -x c++");
-
-            break;
-        }
-        }
-
-        for (CBUINT32 i = 0; i < a_project->DefineCount; ++i)
-        {
-            CUBE_String_AppendC(&compileCommands, " -D");
-            CUBE_String_AppendS(&compileCommands, &a_project->Defines[i]);
-        }
-
-        if (a_project->Language == CUBE_CProjectLanguage_C)
-        {
-            CUBE_String_AppendC(&compileCommands, " -DCUBE_LANGUAGE_C");
-        }
-        else
-        {
-            CUBE_String_AppendC(&compileCommands, " -DCUBE_LANGUAGE_CPP");
-        }
-
-        for (CBUINT32 i = 0; i < a_project->IncludePathCount; ++i)
-        {
-            CUBE_String_AppendC(&compileCommands, " -I");
-            
-            CUBE_Path includePath = CUBE_Path_CombineP(a_workingPath, &a_project->IncludePaths[i]);
-            CUBE_String includePathStr = CUBE_Path_ToString(&includePath);
-
-            CUBE_String_AppendS(&compileCommands, &includePathStr);
-
-            CUBE_Path_Destroy(&includePath);
-            CUBE_String_Destroy(&includePathStr);
-        }
-
-        for (CBUINT32 i = 0; i < a_project->CFlagCount; ++i)
-        {
-            CUBE_String_AppendC(&compileCommands, " ");
-            CUBE_String_AppendS(&compileCommands, &a_project->CFlags[i]);
-        }
-
-        CUBE_Path sourcePath = CUBE_Path_CombineP(a_workingPath, &a_project->Sources[i]);
+        CUBE_Path sourcePath = CUBE_Path_CombineP(a_workingPath, &(a_project->Sources[i]));
         CUBE_String sourcePathStr = CUBE_Path_ToString(&sourcePath);
-
-        CUBE_Path parentPath = CUBE_Path_ParentPath(&a_project->Sources[i]);
-        CUBE_String fileName = CUBE_Path_Filename(&sourcePath);
-        CUBE_Path objOutPath = CUBE_Path_CombineP(&outPath, &parentPath);
-        CUBE_Path objPath = CUBE_Path_CombineS(&objOutPath, &fileName);
-        CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
-
-        CUBE_String_AppendC(&compileCommands, " -o ");
-        CUBE_String_AppendS(&compileCommands, &objPathStr);
-        CUBE_String_AppendC(&compileCommands, ".o");
-
-        CUBE_String_AppendC(&compileCommands, " -c ");
-
-        CUBE_String_AppendS(&compileCommands, &sourcePathStr);
 
         CUBE_String_AppendC(&compileCommands, "\",\n");
 
@@ -1229,18 +1688,24 @@ CUBE_String CUBEI_CProject_CreateProjectCompileCommands(const CUBE_CProject* a_p
         CUBE_String_AppendS(&compileCommands, &sourcePathStr);
         CUBE_String_AppendC(&compileCommands, "\",\n");
 
+        CUBE_Path parentPath = CUBE_Path_ParentPath(&a_project->Sources[i]);
+        CUBE_String fileName = CUBE_Path_Filename(&sourcePath);
+        CUBE_Path objOutPath = CUBE_Path_CombineP(&outPath, &parentPath);
+        CUBE_Path objPath = CUBE_Path_CombineS(&objOutPath, &fileName);
+        CUBE_String objPathStr = CUBE_Path_ToNRString(&objPath);
+
         CUBE_String_AppendC(&compileCommands, "    \"output\": \"");
         CUBE_String_AppendS(&compileCommands, &objPathStr);
         CUBE_String_AppendC(&compileCommands, ".o\"\n");
+
+        CUBE_Path_Destroy(&sourcePath);
+        CUBE_String_Destroy(&sourcePathStr);
 
         CUBE_Path_Destroy(&parentPath);
         CUBE_String_Destroy(&fileName);
         CUBE_Path_Destroy(&objOutPath);
         CUBE_Path_Destroy(&objPath);
         CUBE_String_Destroy(&objPathStr);
-
-        CUBE_Path_Destroy(&sourcePath);
-        CUBE_String_Destroy(&sourcePathStr);
 
         CUBE_String_AppendC(&compileCommands, "  }");
 
@@ -1315,7 +1780,7 @@ CUBE_String CUBE_CProject_GenerateMultiCompileCommands(const CUBE_CProject* a_pr
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2025 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

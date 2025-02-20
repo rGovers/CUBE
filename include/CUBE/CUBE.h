@@ -21,6 +21,8 @@ typedef unsigned int CBUINT32;
 typedef unsigned long long CBUINT64;
 #endif
 
+typedef CBUINT64 CBTIME;
+
 #ifndef CBNULL
 #define CBNULL 0
 #endif
@@ -54,7 +56,7 @@ typedef unsigned long long CBUINT64;
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2025 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

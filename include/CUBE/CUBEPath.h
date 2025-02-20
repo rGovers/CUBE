@@ -18,12 +18,15 @@ typedef struct
 } CUBE_Path;
 
 CUBE_Path CUBE_Path_CreateC(const char* a_path);
+CUBE_Path CUBE_Path_CreateCL(const char* a_rhs, CBUINT32 a_length);
 CUBE_Path CUBEI_Path_CreateCA(const char* a_strs[]);
 #define CUBE_Path_CreateCA(...) CUBEI_Path_CreateCA((const char*[]){__VA_ARGS__, CBNULL})
 
 void CUBE_Path_Destroy(CUBE_Path* a_path);
 
 CUBE_Path CUBE_Path_Copy(const CUBE_Path* a_path);
+
+CBBOOL CUBE_Path_Equals(const CUBE_Path* a_lhs, const CUBE_Path* a_rhs);
 
 CUBE_Path CUBE_Path_ParentPath(const CUBE_Path* a_path);
 
@@ -62,6 +65,63 @@ CUBE_Path CUBE_Path_CreateC(const char* a_path)
     {
         while (*e != '\0' && *e != '/' && *e != '\\')
         {
+            ++e;
+        }
+
+        const CBUINT32 length = e - s;
+        const CBUINT32 index = path.PathCount++;
+
+        path.Path = (CUBE_String*)realloc(path.Path, sizeof(CUBE_String) * path.PathCount);
+        path.Path[index] = CUBE_String_CreateCL(s, length);
+
+        if (*e == '\0')
+        {
+            break;
+        }
+
+        s = e + 1;
+        e = s;
+    }
+
+    return path;
+}
+CUBE_Path CUBE_Path_CreateCL(const char* a_path, CBUINT32 a_length)
+{
+    CUBE_Path path = { 0 };
+
+    if (a_length <= 0)
+    {
+        return path;
+    }
+
+    const char* s = a_path;
+    if (s[0] == '/')
+    {
+        path.PathCount = 1;
+        path.Path = (CUBE_String*)malloc(sizeof(CUBE_String) * path.PathCount);
+        path.Path[0] = CUBE_String_CreateC("/");
+    }
+
+    while (*s == '/' || *s == '\\') 
+    {
+        if (s - a_path >= a_length)
+        {
+            return path;
+        }
+
+        ++s;
+    }
+
+    const char* e = s;
+    while (*e != '\0' && e - a_path < a_length)
+    {
+        while (*e != '\0' && *e != '/' && *e != '\\')
+        {
+            if (e - a_path >= a_length)
+            {
+                break;
+            }
+
             ++e;
         }
 
@@ -125,6 +185,24 @@ CUBE_Path CUBE_Path_Copy(const CUBE_Path* a_path)
     }
 
     return path;
+}
+
+CBBOOL CUBE_Path_Equals(const CUBE_Path* a_lhs, const CUBE_Path* a_rhs)
+{
+    if (a_lhs->PathCount != a_rhs->PathCount)
+    {
+        return CBFALSE;
+    }
+
+    for (CBUINT32 i = 0; i < a_lhs->PathCount; ++i)
+    {
+        if (!CUBE_String_Equals(&(a_lhs->Path[i]), &(a_rhs->Path[i])))
+        {
+            return CBFALSE;
+        }
+    }
+
+    return CBTRUE;
 }
 
 CUBE_String CUBE_Path_ToString(const CUBE_Path* a_path)
@@ -288,7 +366,7 @@ CUBE_String CUBE_Path_Filename(const CUBE_Path* a_path)
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2025 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal

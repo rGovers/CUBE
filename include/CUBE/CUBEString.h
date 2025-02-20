@@ -5,8 +5,6 @@
 #ifndef INCLUDED_HEADER_CUBESTRING
 #define INCLUDED_HEADER_CUBESTRING
 
-#include <stdlib.h>
-
 #include "CUBE/CUBEStackString.h"
 
 #ifdef __cplusplus
@@ -27,6 +25,8 @@ void CUBE_String_Destroy(CUBE_String* a_string);
 
 CUBE_String CUBE_String_Copy(const CUBE_String* a_string);
 
+CBBOOL CUBE_String_Equals(const CUBE_String* a_lhs, const CUBE_String* a_rhs);
+
 CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs);
 CUBE_String CUBE_String_MergeSS(const CUBE_String* a_lhs, const CUBE_StackString* a_rhs);
 CUBE_String CUBE_String_MergeC(const CUBE_String* a_lhs, const char* a_rhs);
@@ -39,6 +39,8 @@ void CUBE_String_AppendCL(CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_leng
 
 #ifdef CUBE_IMPLEMENTATION
 // #if 1
+
+#include <stdlib.h>
 
 CUBE_String CUBE_String_CreateC(const char* a_string)
 {
@@ -110,6 +112,24 @@ CUBE_String CUBE_String_Copy(const CUBE_String* a_string)
     string.Data[string.Length] = '\0';
 
     return string;
+}
+
+CBBOOL CUBE_String_Equals(const CUBE_String* a_lhs, const CUBE_String* a_rhs)
+{
+    if (a_lhs->Length != a_rhs->Length)
+    {
+        return CBFALSE;
+    }
+
+    for (CBUINT32 i = 0; i < a_lhs->Length; ++i)
+    {
+        if (a_lhs->Data[i] != a_rhs->Data[i])
+        {
+            return CBFALSE;
+        }
+    }
+
+    return CBTRUE;
 }
 
 CUBE_String CUBE_String_MergeS(const CUBE_String* a_lhs, const CUBE_String* a_rhs)
@@ -230,7 +250,7 @@ void CUBE_String_AppendCL(CUBE_String* a_lhs, const char* a_rhs, CBUINT32 a_leng
 
 // MIT License
 // 
-// Copyright (c) 2023 River Govers
+// Copyright (c) 2025 River Govers
 // 
 // Permission is hereby granted, free of charge, to any person obtaining a copy
 // of this software and associated documentation files (the "Software"), to deal
